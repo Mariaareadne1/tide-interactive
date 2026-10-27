@@ -78,16 +78,24 @@ export class Beach {
   /** A line was just finished: the nearest free crab comes to walk it; on a long line, another may come to watch. */
   notice(line: SandLine): void {
     const t = this.engine.elapsed;
-    const free = this.crabs.filter((c) => !c.controller.busy || c.controller.waitingForLine);
-    if (!free.length) return;
     const path = buildPath(longestRun(line.points));
     if (!path) return;
+    // the strokes of one word are one thing to look at: if a crab already has it, let it be
+    const group = line.group ?? line.id;
+    const taken = this.crabs.some((c) => {
+      const id = c.controller.lineId;
+      const other = id !== null ? this.lines.find((l) => l.id === id) : undefined;
+      return other !== undefined && other.id !== line.id && (other.group ?? other.id) === group;
+    });
+    const waiting = this.crabs.find((c) => c.controller.waitingForLine);
+    if (taken && !waiting) return;
+    const free = this.crabs.filter((c) => c.controller.available || c.controller.waitingForLine);
+    if (!free.length) return;
     const dist = (c: Crab) => nearestOnPath(path, c.controller.x, c.controller.z).d;
-    const waiting = free.find((c) => c.controller.waitingForLine);
     const sorted = [...free].sort((a, b) => dist(a) - dist(b));
     const walker = waiting ?? sorted[0];
     walker.controller.goFollow(line, t);
-    const second = sorted.find((c) => c !== walker && !c.controller.busy);
+    const second = sorted.find((c) => c !== walker && c.controller.available);
     if (second && lineLength(line.points) > 1.2 && dist(second) < 5 && (line.id * 0.618) % 1 < 0.6) second.controller.goWatch(line, t);
   }
 

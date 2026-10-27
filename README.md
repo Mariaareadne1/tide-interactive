@@ -1,0 +1,61 @@
+# TIDE
+
+*draw in the sand*
+
+You draw in the wet sand with your finger. The line stays, pressed into the sand. Little crabs come and walk along it. Then the waves come in and gently wash it away.
+
+TIDE is the fifth piece in a family by the same author — [MEADOW](https://meadow-interactive.vercel.app) (draw a sheep), [POND](https://pond-interactive.vercel.app), [HIVE](https://hive-interactive.vercel.app) and SKY — and the smallest: one gesture, one thing that happens to it.
+
+![The cove](docs/media/beach.jpg)
+
+https://github.com/Mariaareadne1/tide-interactive/raw/main/docs/media/tide-demo.mp4
+
+## What you can do
+- **Draw** anywhere on the sand — a word, a heart, a spiral. The groove forms under your finger as you go: a damp, darker trough with a little lip of pushed-up sand either side. On wet sand it is crisp and dark; up on the dry sand it is softer and crumblier.
+- **Watch the crabs.** When you lift your finger, the nearest crab scuttles over — sideways — and walks along your line, stopping to look at its corners and ends. On a long line a second one may come and wave.
+- **Let the sea take it.** A wave every 5–8 seconds; most reach partway up the wet sand, every fourth or fifth runs high, sometimes onto the dry sand. Where the water reaches, a line softens over two or three waves; foam lingers in what is left of it, and its bubbles pop. Crabs run up the beach ahead of the water or burrow until it passes.
+- **Click a crab** for a blue box with its size and three actions: **Follow a line**, **Wave**, **Burrow** / **Come out**. Drag it to carry it somewhere else.
+- **Undo** smooths your last line back over — unless the sea already has it.
+- **Save image** (a PNG of the real scene), and from the menu **Record 12-second clip** and **Hide interface**.
+
+Nothing is saved. On reload the beach is smooth again and the crabs are back at home; that's the point.
+
+| Writing | A wave taking a heart |
+|---|---|
+| ![writing](docs/media/writing.png) | ![wave](docs/media/wave-strip.jpg) |
+
+| Up close | A crab, selected | On a phone |
+|---|---|---|
+| ![groove](docs/media/groove-close.jpg) | ![crab](docs/media/crab-selected.jpg) | ![phone](docs/media/phone.png) |
+
+Keyboard: ⌘Z undo · Tab select a crab · F / W / B follow, wave, burrow · Esc deselect · H hide the interface.
+
+## How it works
+- **Vite + TypeScript + plain three.js** with custom `ShaderMaterial`s; React only for the interface. The engine (renderer, painted light, sun shadows, tone curve, camera, recorder) is MEADOW's, by way of HIVE.
+- **The sand is a GPU heightmap** — two ping-pong `RGBA16F` render targets over the whole tile (1024 × 768): groove depth, lip, wetness left by the waves, and foam caught in grooves.
+  - *Stamping*: each pointer move is smoothed, projected onto the beach, resampled every 2 cm and drawn as segments into the current target with **MAX blending**, scissored to their bounds — cheap, and drawing over a line never deepens it.
+  - *Evolving*: once a frame, where the sea covers the sand, grooves smear toward their neighbours (never upward) and decay; wet sand dries; foam lingers and fades.
+  - *Undo*: a snapshot is taken before each line; undo paints the line's footprint into a mask and eases the sand inside it back to the snapshot.
+  - The beach mesh lowers itself into the heightmap in its vertex shader, and takes its normal from the heightmap per pixel, so a 4 cm groove reads as pressed in under the painted sun.
+- **The waves are a pure function of time and seed** (`src/sea/waves.ts`): schedule, reach, run-up/pause/draw-back profile and the wobble of the front. The shaders, the crabs and the CPU mirror all ask the same function, so recordings and tests replay exactly.
+- **A small CPU mirror** of each line (its resampled points, each with a strength worn down exactly as the GPU wears down the groove) tells crabs what is left to follow and undo whether the sea has touched it.
+- **Crabs** follow MEADOW/POND's pattern: a controller of plans (potter, approach, follow, watch, flee, hide, burrowed, wave, held) and behaviours that are pure functions of time, cross-faded, with squash and stretch and a continuous leg phase.
+- **Capture**: the line is in the scene, so the recorder just records the canvas — MP4/H.264 where the browser can, else WebM.
+- Touch, pen (pressure deepens the line) and mouse through one pointer state machine; reduced motion gives a slower, gentler sea; dynamic resolution; on WebGL context loss the beach comes back smooth.
+
+## Run it
+```bash
+npm install
+npm run dev          # http://localhost:5388
+```
+
+## Check it
+```bash
+npm test                      # 20 unit tests: strokes, groove stamping, waves, erosion, crab paths, fuzzing
+npm run test:e2e              # 13 Playwright tests in real Chromium (Metal ANGLE), against the dev server
+E2E_PROD=1 npm run test:e2e   # the same against the production build
+npm run typecheck && npm run lint && npm run build
+```
+QA scripts (need the dev server): `scripts/shoot.mjs`, `draw.mjs` (writes a word and a heart, close-up), `strip.mjs` (a wave taking a heart, with depth read back), `perf.mjs` (GPU-synced), `demo.mjs` (the scripted clip, through the app's own recorder).
+
+MIT licensed. See [CASE_STUDY.md](CASE_STUDY.md) for how it was made and [PROGRESS.md](PROGRESS.md) for where it stands.

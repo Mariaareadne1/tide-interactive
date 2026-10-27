@@ -104,10 +104,10 @@ export class CrabController {
     return this.plan.kind === 'burrowed' || this.plan.kind === 'hide';
   }
 
-  /** Busy with something it shouldn't be pulled away from by a new line. */
-  get busy(): boolean {
+  /** Free to go and look at a new line: not carried, not dug in or waving on request, not on a line already. */
+  get available(): boolean {
     const k = this.plan.kind;
-    return k !== 'potter' && k !== 'watch';
+    return k !== 'held' && k !== 'burrowed' && k !== 'wave' && this.lineId === null;
   }
 
   private setPlan(plan: Plan): void {
@@ -393,6 +393,15 @@ export class CrabController {
     }
     if (this.behaviour === 'walk') this.play(plan.activity, t);
     if (t < plan.restUntil) return;
+    // back to the line it left when the wave came, if the sea has left any of it
+    const r = this.takeResume();
+    if (r && (r.kind === 'approach' || r.kind === 'follow')) {
+      const line = world.line(r.lineId);
+      if (line && isAlive(line)) {
+        this.resumeLine(line, r, t);
+        return;
+      }
+    }
     // a short wander near home, staying out of the water
     for (let k = 0; k < 12; k++) {
       const a = this.rand() * Math.PI * 2, r = 0.3 + this.rand() * 1.4;

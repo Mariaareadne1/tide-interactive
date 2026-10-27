@@ -20,31 +20,20 @@ export function spiral(size = 1) {
   return [pts];
 }
 
-/** The word "sea" in a loose hand, about 1.6 m long. */
+/** The word "hi" in a loose hand, about 0.6 m wide, as three strokes (the dot is a tiny one). */
 export function word(size = 1) {
-  const s = [];
-  // s
-  const sP = [];
-  for (let i = 0; i <= 30; i++) {
-    const t = i / 30;
-    const a = Math.PI * 0.2 + t * Math.PI * 2.2;
-    sP.push([-0.62 + 0.13 * Math.cos(a) * (t < 0.5 ? 1 : -1), -0.2 + t * 0.4 + 0.06 * Math.sin(a)]);
+  const h1 = [];
+  for (let i = 0; i <= 14; i++) h1.push([-0.3 + Math.sin(i * 0.4) * 0.006, -0.3 + (i / 14) * 0.58]);
+  const h2 = [];
+  for (let i = 0; i <= 24; i++) {
+    const t = i / 24;
+    if (t < 0.55) {
+      const a = Math.PI - (t / 0.55) * Math.PI;
+      h2.push([-0.3 + 0.13 + 0.13 * Math.cos(a), 0.06 - 0.14 * Math.sin(a)]);
+    } else h2.push([-0.04, 0.06 + ((t - 0.55) / 0.45) * 0.22]);
   }
-  s.push(sP);
-  // e
-  const eP = [[-0.25, 0.02], [0.0, 0.02]];
-  for (let i = 0; i <= 30; i++) {
-    const a = -0.1 + (i / 30) * Math.PI * 1.75;
-    eP.push([-0.12 + 0.14 * Math.cos(a), 0.02 - 0.2 * Math.sin(a)]);
-  }
-  s.push(eP);
-  // a
-  const aP = [];
-  for (let i = 0; i <= 30; i++) {
-    const a = Math.PI * 0.25 + (i / 30) * Math.PI * 2;
-    aP.push([0.33 + 0.14 * Math.cos(a), 0.02 - 0.2 * Math.sin(a)]);
-  }
-  aP.push([0.47, -0.2], [0.47, 0.22]);
-  s.push(aP);
-  return s.map((st) => st.map(([x, z]) => [x * size, z * size]));
+  const i1 = [];
+  for (let i = 0; i <= 10; i++) i1.push([0.16, -0.04 + (i / 10) * 0.32]);
+  const dot = [[0.155, -0.2], [0.17, -0.19], [0.16, -0.18]];
+  return [h1, h2, i1, dot].map((st) => st.map(([x, z]) => [x * size, z * size]));
 }

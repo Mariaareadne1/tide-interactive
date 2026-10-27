@@ -4,7 +4,7 @@ import type { Store, Selection } from '../state/store';
 import { Cove } from '../scene/Cove';
 import { baseWetness, isDrawable, surfaceAt, terrainHeight } from '../scene/beach';
 import { screenToTerrain } from '../interaction/terrainRay';
-import { erodeLines, isAlive, lineLength, resample, type SandLine } from '../sand/lines';
+import { erodeLines, groupFor, isAlive, lineLength, resample, type SandLine } from '../sand/lines';
 import type { Segment } from '../sand/SandField';
 import { Beach } from '../crabs/Beach';
 
@@ -143,6 +143,7 @@ export class TideApp {
       this.cove.sand.dropSnapshot(pen.line.id);
       return null;
     }
+    pen.line.group = groupFor(pen.line, this.lines);
     this.store.set({ hasDrawn: true });
     this.refreshUndo();
     if (lineLength(pen.line.points) > 0.35) this.beach.notice(pen.line);

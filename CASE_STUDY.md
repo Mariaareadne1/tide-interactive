@@ -1,0 +1,37 @@
+# TIDE — case study
+
+## The brief
+One gesture and one thing that happens to it. You press a line into wet sand; crabs come and walk along it; the sea takes it back. Same hand as MEADOW, POND and HIVE; quieter than all of them; a little bittersweet but never sad. Everything not in that sentence — shells to collect, sandcastles, a tide slider, saving your drawing — was left out on purpose.
+
+## Decisions
+
+**The sea along the near edge.** With the camera on the +z side, the sea sits at the bottom of the page and waves run *up* the screen. Their reach reads instantly, the lines you draw sit in the middle of the page above the toolbar, and the dunes, rocks and seaweed line fill the far side like the back of an illustration. On a phone the camera turns a quarter, so the waves run across the screen.
+
+**A line is a heightmap, not a decal.** The groove is real displacement in a GPU heightfield, and its normal is read per pixel, so the one painted sun shades one wall and lights the other. That's what makes it feel *pressed in* rather than drawn on. The heightmap has four channels — depth, lip, wetness, foam — so the sea's effect (glossy wet sand that dries, foam caught in a groove, bubbles popping one by one) lives in the same place as the line itself.
+
+**MAX blending for the stamp.** The first version cleared every scissored rectangle to the paper colour, because `renderer.autoClear` was on — a whole rectangle of "groove". Turned off for the stamp passes, MAX blending gives exactly the semantics a finger in sand has: going over a line again doesn't dig it deeper, and a new line's lip never fills an older line's trough (height = −depth + lip·(1 − depth)).
+
+**Erosion that never lifts sand.** The evolve pass smears each texel toward the *lower* of itself and its neighbours' average, then decays it — so under water a groove only ever gets shallower (a unit test checks this on the CPU twin), and beyond the water's reach nothing changes at all. A word near the waterline softens over two or three waves; something drawn high stays until a big wave comes.
+
+**Waves as a pure function.** `WaveClock` answers "how far up the beach is the water at x, at time t?" from the seed alone. Every fourth or fifth wave runs high (the gap between big waves is itself 4 or 5, chosen by hash). The shaders, the crabs' lookahead, the CPU mirror, the tests and the demo all ask the same question, so a recording replays exactly, and a demo can line a big wave up with a moment by shifting the schedule rather than faking anything.
+
+**Crabs notice what you drew.** The nearest free crab walks a fresh line from its nearer end, sideways, pausing at corners and ends. Two things went wrong on the way and are fixed:
+- Each stroke of a word summoned its own crab, and all four piled onto "hi". Strokes drawn close together within a few seconds now share a group, and a group gets one crab.
+- A crab that ran from a wave kept its line in mind but never went back to it. Now, once it has waited the wave out, it returns to whatever is left of the line.
+
+**Larger than life.** At the app camera a realistic 2 cm groove is three pixels. The groove is ~4 cm of real sand (~10 px at 1440 × 900) and the crabs ~35 px across — MEADOW's rule for characters, applied to the line too.
+
+## Testing
+- 20 unit tests: resampling; the groove profile (deepest on the line, a lip either side, crisper on wet sand); CPU stamping changes the sand along the stroke and nowhere else, and re-drawing doesn't deepen it; erosion is monotonic inside the water and leaves the rest untouched; the wave schedule is deterministic, 5–8 s apart, with big waves every 4th–5th; a crab walks a whole heart within 1 cm of it and stops at corners; crabs on the wet sand get out of the way or dig in before a big wave arrives; every behaviour stays finite; 20 000 fuzzed frames of requests, drags and vanishing lines never break a controller.
+- 13 Playwright tests in real Chromium with Metal ANGLE, on both the dev server and the production build: the painted cove renders; a drawn line makes a groove you can read back from the GPU (and only there); a crab arrives within 12 s and walks most of the way round a heart; a big wave halves a groove while one beyond its reach is untouched; undo smooths lines back over; drawing off the tile or on the sea makes no line (the sea ripples); each crab action changes real state; a crab can be carried; Save image downloads a PNG; the recorder captures the live scene; a touch-screen finger draws; reduced motion slows the sea; after a lost and restored WebGL context the sand is smooth again.
+- Visual QA by looking: the empty beach, a word being written frame by frame, a close-up at the app's angle, a wave washing over a heart as a filmstrip, crabs following, a phone in portrait.
+
+## Performance
+GPU-synced (a pixel readback after every frame, frames back to back), with four lines in the sand, a wave running and all four crabs moving, on an Apple-silicon Mac under a load average of ~4.5 on 12 cores: **11.8 ms median / 14.1 ms p99 at 2880 × 1800**, **6.2 ms median at 1440 × 900**. The demo recording runs at 59.6 fps with no frame gap over 50 ms.
+
+## Not done / honest limits
+- The CPU twin of the stamp doesn't include the dry-sand "crumble" noise, so on dry sand the CPU and GPU grooves differ slightly at the edges (the tests that compare depths use wet sand or GPU readback).
+- Line strength on the CPU wears down with the decay only, not the GPU's smearing, so it runs a little ahead of the real groove (e.g. 0.57 vs 0.41 after one wave). It only decides when crabs stop following and when undo is refused.
+- Undo restores the line's footprint to the snapshot taken before it: if a wave touched an *older* line inside that footprint in between, that older patch comes back un-eroded. Undo is refused for lines the sea has touched, which keeps this rare.
+- Up close, the swash's foam edge looks a little like cut paper; at the app's camera it reads as lace.
+- Not deployed yet.

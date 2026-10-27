@@ -26,6 +26,23 @@ export interface SandLine {
   touched: boolean;
   /** Still being drawn. */
   open: boolean;
+  /** Lines drawn close together in quick succession (the strokes of a word) share a group. */
+  group?: number;
+}
+
+/** Strokes this close to, and this soon after, another belong with it. */
+const GROUP_GAP = 0.6;
+const GROUP_TIME = 5;
+
+/** The group a freshly finished line belongs to: a recent neighbour's, or its own. */
+export function groupFor(line: SandLine, lines: readonly SandLine[]): number {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const other = lines[i];
+    if (other === line || other.open || line.createdAt - other.createdAt > GROUP_TIME) continue;
+    const near = line.points.some((p, k) => k % 3 === 0 && other.points.some((q) => Math.abs(p.x - q.x) < GROUP_GAP && Math.hypot(p.x - q.x, p.z - q.z) < GROUP_GAP));
+    if (near) return other.group ?? other.id;
+  }
+  return line.id;
 }
 
 /** Points weaker than this no longer count as a line. */

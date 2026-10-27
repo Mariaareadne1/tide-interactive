@@ -1,31 +1,30 @@
-// GPU-synced frame benchmark: node scripts/perf.mjs [flowers=30]
-// Renders back-to-back frames with a pixel readback after each (forces the GPU to finish).
+// GPU-synced frame benchmark: node scripts/perf.mjs [dpr=2]
+// Renders back-to-back frames with a pixel readback after each (forces the GPU to finish),
+// with a few lines in the sand, a wave running and all four crabs moving.
 import { chromium } from '@playwright/test';
 import { loadavg, cpus } from 'node:os';
 
-const n = Number(process.argv[2] ?? 30);
+const dpr = Number(process.argv[2] ?? 2);
 const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu'] });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
-await page.goto('http://localhost:5376/?empty');
-await page.waitForFunction(() => window.__hive && !window.__hive.store.get().loading, null, { timeout: 90000 });
-await page.evaluate((n) => {
-  const h = window.__hive;
-  const kinds = ['sunflower', 'rose', 'daisy', 'lavender', 'poppy', 'allium', 'foxglove'];
-  const beds = [[-5.5, 3.3, 2.0, 1.4], [4.5, 1.4, 2.8, 1.6], [2.6, -3.9, 3.0, 0.7]];
-  const flowers = Array.from({ length: n }, (_, i) => {
-    const b = beds[i % 3];
-    return { id: `p${i}`, kind: kinds[i % 7], x: b[0] + (((i * 0.37) % 1) - 0.5) * b[2] * 1.8, z: b[1] + (((i * 0.61) % 1) - 0.5) * b[3] * 1.8, heading: 0, height: 1.3, stem: [[0, 0], [0.05, 0.5], [0, 1]], palette: i, seed: i, scale: 1, open: true };
-  });
-  h.app.loadDoc({ version: 1, flowers, hive: h.store.doc.hive });
-}, n);
-await page.waitForFunction(() => window.__hive.app.living.colony.colony.bees.filter((b) => b.state !== 'inside').length >= 13, null, { timeout: 90000 });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: dpr });
+await page.goto('http://localhost:5388/');
+await page.waitForFunction(() => window.__tide && !window.__tide.store.get().loading, null, { timeout: 90000 });
 const res = await page.evaluate(async () => {
-  const h = window.__hive, e = h.engine, gl = e.renderer.getContext();
+  const t = window.__tide, e = t.engine, gl = e.renderer.getContext();
+  const toS = (x, z) => { const p = e.camera.position.clone().set(x, t.app.heightAt(x, z), z).project(e.camera); return { x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight }; };
+  for (let k = 0; k < 4; k++) {
+    const a = toS(-5 + k * 2.5, 0.5);
+    t.app.beginLine(a.x, a.y);
+    const pts = [];
+    for (let i = 0; i < 60; i++) pts.push(toS(-5 + k * 2.5 + Math.sin(i * 0.2) * 0.6, 0.5 - i * 0.03));
+    t.app.extendLine(pts);
+    t.app.endLine();
+  }
   e.stop();
   e.adaptive = false;
   const px = new Uint8Array(4);
   const times = [];
-  for (let i = 0; i < 240; i++) {
+  for (let i = 0; i < 300; i++) {
     const t0 = performance.now();
     e.tick(1 / 60);
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
@@ -34,7 +33,7 @@ const res = await page.evaluate(async () => {
   e.start();
   times.sort((a, b) => a - b);
   const q = (p) => times[Math.floor(times.length * p)];
-  return { median: q(0.5), p90: q(0.9), p99: q(0.99), bees: h.app.living.colony.colony.bees.filter((b) => b.state !== 'inside').length, flowers: h.store.doc.flowers.length, w: e.canvas.width, ht: e.canvas.height, calls: e.renderer.info.render.calls };
+  return { median: +q(0.5).toFixed(2), p90: +q(0.9).toFixed(2), p99: +q(0.99).toFixed(2), w: e.canvas.width, h: e.canvas.height, calls: e.renderer.info.render.calls };
 });
 console.log(JSON.stringify({ ...res, load: loadavg().map((l) => l.toFixed(1)).join(' '), cores: cpus().length }));
 await browser.close();
