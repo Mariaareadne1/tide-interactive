@@ -23,9 +23,10 @@ const smoothstep = (a: number, b: number, t: number) => {
 /**
  * Groove profile at distance d (m) from the finger's path. `wet` 1 gives a
  * crisp, darker line; 0 (dry sand) a wider, shallower, crumblier one.
+ * `width` scales it: a crab's foot is a small fraction of a fingertip.
  */
-export function grooveProfile(d: number, wet: number, pressure = 1): { depth: number; lip: number } {
-  const w = GROOVE_HALF_WIDTH * (1.25 - 0.25 * wet);
+export function grooveProfile(d: number, wet: number, pressure = 1, width = 1): { depth: number; lip: number } {
+  const w = GROOVE_HALF_WIDTH * width * (1.25 - 0.25 * wet);
   const depth = smoothstep(w, w * 0.3, d) * pressure * (0.72 + 0.28 * wet);
   const lipD = (d - w * 1.25) / (w * (0.5 + 0.25 * (1 - wet)));
   const lip = Math.exp(-lipD * lipD) * pressure * (0.85 + 0.35 * (1 - wet));

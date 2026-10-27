@@ -116,7 +116,7 @@ export function App() {
     if (!running || store.get().recording) return;
     store.set({ recording: true, uiHidden: true, selection: null });
     try {
-      const rec = await recordCanvas(running.engine.canvas, { seconds: 12 });
+      const rec = await recordCanvas(running.engine.canvas, { seconds: 12, audio: running.app.sound.stream });
       downloadBlob(rec.blob, `tide-${stamp()}.${rec.extension}`);
       store.toast(`Saved a ${(rec.durationMs / 1000).toFixed(0)}-second ${rec.extension.toUpperCase()} clip.`);
     } catch (error) {
@@ -143,6 +143,7 @@ export function App() {
       switch (key) {
         case 'escape':
           if (input.isDrawing) input.abort();
+          else if (store.get().addingCrab) store.set({ addingCrab: false });
           else if (store.get().uiHidden) store.set({ uiHidden: false });
           else store.set({ selection: null });
           break;
@@ -150,6 +151,9 @@ export function App() {
         case 'f': if (sel) app.followLine(sel.id); break;
         case 'w': if (sel) app.waveClaws(sel.id); break;
         case 'b': if (sel) app.toggleBurrow(sel.id); break;
+        case 'd': app.dance(); break;
+        case 'c': app.toggleAddCrab(); break;
+        case 'm': app.setSound(!store.get().soundOn); break;
         case 'tab': {
           const ids = app.beach.crabs.map((c) => c.id);
           e.preventDefault();
@@ -161,8 +165,16 @@ export function App() {
           return;
       }
     };
+    // browsers only allow sound after a touch or a key
+    const unlock = () => app.sound.unlock();
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('keydown', unlock, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+    };
   }, [running, store]);
 
   return (

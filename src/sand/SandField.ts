@@ -25,6 +25,8 @@ export interface Segment {
   bx: number;
   bz: number;
   pressure: number;
+  /** Relative to a fingertip (default 1); footprints are much smaller. */
+  width?: number;
 }
 
 const MAX_SEGMENTS = 64;
@@ -42,6 +44,7 @@ ${BEACH_GLSL}
 ${GROOVE_GLSL}
 uniform vec4 uSeg[${MAX_SEGMENTS}];
 uniform float uPress[${MAX_SEGMENTS}];
+uniform float uWide[${MAX_SEGMENTS}];
 uniform int uCount;
 uniform float uWiden; // > 1 paints a footprint mask instead of a groove
 varying vec2 vUv;
@@ -57,7 +60,7 @@ void main() {
     if (uWiden > 1.0) {
       best.x = max(best.x, smoothstep(GROOVE_HW * uWiden, GROOVE_HW * uWiden * 0.6, d));
     } else {
-      best = max(best, grooveProfile(d + crumble, wet, uPress[i]));
+      best = max(best, grooveProfile(d + crumble * min(1.0, uWide[i]), wet, uPress[i], uWide[i]));
     }
   }
   gl_FragColor = vec4(best, 0.0, 0.0);
@@ -124,7 +127,8 @@ export class SandField {
   private readonly stampMat: THREE.ShaderMaterial;
   private readonly evolveMat: THREE.ShaderMaterial;
   private readonly copyMat: THREE.ShaderMaterial;
-  private readonly pending: Segment[] = [];
+  /** Queued stamps, one batch per call so far-apart marks keep small scissor boxes. */
+  private readonly pending: Segment[][] = [];
   private restore: Restore | null = null;
   /** Set when the targets need clearing (first frame, context restored). */
   private dirty = true;
@@ -149,6 +153,7 @@ export class SandField {
         ...world,
         uSeg: { value: Array.from({ length: MAX_SEGMENTS }, () => new THREE.Vector4()) },
         uPress: { value: new Array(MAX_SEGMENTS).fill(1) },
+        uWide: { value: new Array(MAX_SEGMENTS).fill(1) },
         uCount: { value: 0 },
         uWiden: { value: 1 },
       },
@@ -194,7 +199,7 @@ export class SandField {
 
   /** Queue segments of a line being pressed; they reach the sand on the next frame. */
   stamp(segments: readonly Segment[]): void {
-    this.pending.push(...segments);
+    if (segments.length) this.pending.push([...segments]);
   }
 
   /** Keep a copy of the sand as it is before line `lineId` (for undo). */
@@ -243,9 +248,7 @@ export class SandField {
   /** Write queued stamps into the sand. */
   flush(renderer: THREE.WebGLRenderer): void {
     if (this.dirty) this.clear(renderer);
-    if (!this.pending.length) return;
-    const segs = this.pending.splice(0);
-    this.drawSegments(renderer, segs, this.current, 1);
+    for (const segs of this.pending.splice(0)) this.drawSegments(renderer, segs, this.current, 1);
   }
 
   private drawSegments(renderer: THREE.WebGLRenderer, segs: readonly Segment[], target: THREE.WebGLRenderTarget, widen: number): void {
@@ -264,11 +267,13 @@ export class SandField {
       batch.forEach((s, i) => {
         u.uSeg.value[i].set(s.ax, s.az, s.bx, s.bz);
         u.uPress.value[i] = s.pressure;
+        u.uWide.value[i] = s.width ?? 1;
         minX = Math.min(minX, s.ax, s.bx); maxX = Math.max(maxX, s.ax, s.bx);
         minZ = Math.min(minZ, s.az, s.bz); maxZ = Math.max(maxZ, s.az, s.bz);
       });
       u.uCount.value = batch.length;
-      const pad = GROOVE_HALF_WIDTH * 3.5 * widen;
+      const wide = Math.max(1, ...batch.map((b) => b.width ?? 1));
+      const pad = GROOVE_HALF_WIDTH * 3.5 * widen * wide;
       const x0 = Math.max(0, Math.floor(((minX - pad) / TILE.halfX + 1) / 2 * this.cols));
       const x1 = Math.min(this.cols, Math.ceil(((maxX + pad) / TILE.halfX + 1) / 2 * this.cols));
       const y0 = Math.max(0, Math.floor(((minZ - pad) / TILE.halfZ + 1) / 2 * this.rows));

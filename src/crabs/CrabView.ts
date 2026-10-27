@@ -6,6 +6,7 @@ import { SHADOW_LAYER } from '../engine/shadows';
 import { terrainHeight } from '../scene/beach';
 import type { WorldUniforms } from '../scene/world';
 import type { Pose } from './pose';
+import { CRAB_SCALE, HIPS, legPhase } from './anatomy';
 
 /**
  * A small painted crab: a rounded shell in coral or sand tones, freckled
@@ -29,18 +30,10 @@ export const CRAB_COLOURS: CrabColours[] = [
   { shell: '#dcb07e', rim: '#b48659', leg: '#e8c49a', tip: '#6e5236' },
 ];
 
-/** Crabs are drawn larger than life, so they read at the app's camera (MEADOW's rule). */
-export const CRAB_SCALE = 1.75;
 const BODY_Y = 0.055;
 const SINK = 0.135;
 const FEMUR = 0.075;
 const TIBIA = 0.105;
-const HIPS: { z: number; fan: number }[] = [
-  { z: 0.06, fan: 0.6 },
-  { z: 0.02, fan: 0.2 },
-  { z: -0.025, fan: -0.2 },
-  { z: -0.07, fan: -0.6 },
-];
 
 const caster = (m: THREE.Mesh) => {
   m.layers.enable(SHADOW_LAYER);
@@ -123,12 +116,12 @@ export class CrabView {
   private readonly eyes: THREE.Group[] = [];
   private readonly materials: THREE.ShaderMaterial[];
 
-  constructor(world: WorldUniforms, colours: CrabColours, readonly seed: number) {
+  constructor(world: WorldUniforms, colours: CrabColours, readonly seed: number, readonly size = 1) {
     const mat = paintMaterial(world, { vertexColors: true, softness: 0.16, gloss: 0.45, shadeTint: '#d8c4e0' });
     const dark = paintMaterial(world, { color: '#2b2422', softness: 0.1, gloss: 1.2 });
     this.materials = [mat, dark];
     this.root.add(this.body);
-    this.root.scale.setScalar(CRAB_SCALE);
+    this.root.scale.setScalar(CRAB_SCALE * size);
 
     const shell = caster(new THREE.Mesh(shellGeometry(colours, seed), mat));
     this.body.add(shell);
@@ -230,7 +223,7 @@ export class CrabView {
     for (const leg of this.legs) {
       const fan = HIPS[leg.index].fan;
       // alternating sets of legs, the two sides half a cycle apart: a quick sideways scuttle
-      const ph = phase + (leg.index % 2) * Math.PI + (leg.side > 0 ? 0 : Math.PI);
+      const ph = legPhase(phase, leg);
       const swing = 0.32 * pose.gait * Math.sin(ph);
       let lift = 0.42 * pose.gait * Math.max(0, Math.cos(ph));
       lift += pose.dig * 0.45 * Math.max(0, Math.sin(time * 24 + leg.index * 1.7 + (leg.side > 0 ? 0 : 1.3)));

@@ -10,13 +10,21 @@ TIDE is the fifth piece in a family by the same author — [MEADOW](https://mead
 
 https://github.com/Mariaareadne1/tide-interactive/raw/main/docs/media/tide-demo.mp4
 
+The dance, with sound:
+
+https://github.com/Mariaareadne1/tide-interactive/raw/main/docs/media/tide-dance.mp4
+
 ## What you can do
 - **Draw** anywhere on the sand — a word, a heart, a spiral. The groove forms under your finger as you go: a damp, darker trough with a little lip of pushed-up sand either side. On wet sand it is crisp and dark; up on the dry sand it is softer and crumblier.
 - **Watch the crabs.** When you lift your finger, the nearest crab scuttles over — sideways — and walks along your line, stopping to look at its corners and ends. On a long line a second one may come and wave.
 - **Let the sea take it.** A wave every 5–8 seconds; most reach partway up the wet sand, every fourth or fifth runs high, sometimes onto the dry sand. Where the water reaches, a line softens over two or three waves; foam lingers in what is left of it, and its bubbles pop. Crabs run up the beach ahead of the water or burrow until it passes.
-- **Click a crab** for a blue box with its size and three actions: **Follow a line**, **Wave**, **Burrow** / **Come out**. Drag it to carry it somewhere else.
+- **Watch for footprints.** Crabs leave little dotted tracks in the sand as they scuttle, and a hollow where they dig in. The waves take those too.
+- **Click a crab** for a blue box with its size and its actions: **Follow a line**, **Wave**, **Burrow** / **Come out**, and **Dance**. Drag it to carry it somewhere else.
+- **Add a crab.** Press **Add a crab** and draw a closed loop — a shell — in the sand. The groove smooths away and a crab, sized to your drawing, digs its way out of it. Up to ten crabs on the beach.
+- **Dance.** Every crab on the beach scuttles into a row along the shore, faces you, and dances to a little calypso: a claw-tapping count-in, side-steps, claws up, a hop that ripples down the line, a spin, a shimmy, and a ta-da. If a big wave comes mid-song they dig in, eyes up, and pop back out to finish.
+- **Listen.** The surf roars as a wave runs up and hisses as it draws back; your fingertip scratches in the sand (softer on wet sand); crabs bloop when they pop out. One button mutes it all (remembered on this device). Sound starts with your first touch, as browsers require.
 - **Undo** smooths your last line back over — unless the sea already has it.
-- **Save image** (a PNG of the real scene), and from the menu **Record 12-second clip** and **Hide interface**.
+- **Save image** (a PNG of the real scene), and from the menu **Record 12-second clip** (with sound) and **Hide interface**.
 
 Nothing is saved. On reload the beach is smooth again and the crabs are back at home; that's the point.
 
@@ -24,11 +32,15 @@ Nothing is saved. On reload the beach is smooth again and the crabs are back at 
 |---|---|
 | ![writing](docs/media/writing.png) | ![wave](docs/media/wave-strip.jpg) |
 
+| A shell becomes a crab | Footprints | Everyone dances |
+|---|---|---|
+| ![hatch](docs/media/hatch.jpg) | ![footprints](docs/media/footprints.jpg) | ![dance](docs/media/dance.jpg) |
+
 | Up close | A crab, selected | On a phone |
 |---|---|---|
 | ![groove](docs/media/groove-close.jpg) | ![crab](docs/media/crab-selected.jpg) | ![phone](docs/media/phone.png) |
 
-Keyboard: ⌘Z undo · Tab select a crab · F / W / B follow, wave, burrow · Esc deselect · H hide the interface.
+Keyboard: ⌘Z undo · Tab select a crab · F / W / B follow, wave, burrow · D dance · C add a crab · M sound · Esc deselect · H hide the interface.
 
 ## How it works
 - **Vite + TypeScript + plain three.js** with custom `ShaderMaterial`s; React only for the interface. The engine (renderer, painted light, sun shadows, tone curve, camera, recorder) is MEADOW's, by way of HIVE.
@@ -40,6 +52,9 @@ Keyboard: ⌘Z undo · Tab select a crab · F / W / B follow, wave, burrow · Es
 - **The waves are a pure function of time and seed** (`src/sea/waves.ts`): schedule, reach, run-up/pause/draw-back profile and the wobble of the front. The shaders, the crabs and the CPU mirror all ask the same function, so recordings and tests replay exactly.
 - **A small CPU mirror** of each line (its resampled points, each with a strength worn down exactly as the GPU wears down the groove) tells crabs what is left to follow and undo whether the sea has touched it.
 - **Crabs** follow MEADOW/POND's pattern: a controller of plans (potter, approach, follow, watch, flee, hide, burrowed, wave, held) and behaviours that are pure functions of time, cross-faded, with squash and stretch and a continuous leg phase.
+- **Footprints** come from the crabs' own legs: each leg's phase in the scuttle is known, so when a foot comes down the controller reports where, and a tiny dimple is stamped into the same heightmap (one small scissored batch per crab per frame).
+- **The dance** is a pure function of the beat (`src/crabs/dance.ts`), and **the song** (`src/audio/song.ts`) is scheduled on the Web Audio clock from the same BPM and bar layout — steel pan, marimba bass, off-beat stabs, shaker and a soft drum, all synthesised, no audio files. The surf and the fingertip scratch are filtered noise driven each frame by the wave clock and the pen.
+- **The sea's foam** is cellular: threads of lace on the cell walls for drifting foam lines and receding water, froth (white with small holes) for breaking white water, faint caustics in the shallows — each only computed where it can show.
 - **Capture**: the line is in the scene, so the recorder just records the canvas — MP4/H.264 where the browser can, else WebM.
 - Touch, pen (pressure deepens the line) and mouse through one pointer state machine; reduced motion gives a slower, gentler sea; dynamic resolution; on WebGL context loss the beach comes back smooth.
 
@@ -51,11 +66,11 @@ npm run dev          # http://localhost:5388
 
 ## Check it
 ```bash
-npm test                      # 20 unit tests: strokes, groove stamping, waves, erosion, crab paths, fuzzing
-npm run test:e2e              # 13 Playwright tests in real Chromium (Metal ANGLE), against the dev server
+npm test                      # 31 unit tests: strokes, grooves, waves, erosion, crab paths, footfalls, the dance and song, shells, fuzzing
+npm run test:e2e              # 19 Playwright tests in real Chromium (Metal ANGLE), against the dev server
 E2E_PROD=1 npm run test:e2e   # the same against the production build
 npm run typecheck && npm run lint && npm run build
 ```
-QA scripts (need the dev server): `scripts/shoot.mjs`, `draw.mjs` (writes a word and a heart, close-up), `strip.mjs` (a wave taking a heart, with depth read back), `perf.mjs` (GPU-synced), `demo.mjs` (the scripted clip, through the app's own recorder).
+QA scripts (need the dev server): `scripts/shoot.mjs`, `draw.mjs` (writes a word and a heart, close-up), `strip.mjs` (a wave taking a heart, with depth read back), `perf.mjs` (GPU-synced), `features.mjs` (footprints, a shell hatching, the dance), `demo.mjs` and `demo-dance.mjs` (scripted clips, with sound, through the app's own recorder).
 
 MIT licensed. See [CASE_STUDY.md](CASE_STUDY.md) for how it was made and [PROGRESS.md](PROGRESS.md) for where it stands.

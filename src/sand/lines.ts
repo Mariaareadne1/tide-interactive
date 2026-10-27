@@ -95,3 +95,31 @@ export function erodeLines(lines: readonly SandLine[], waves: WaveClock, t: numb
 export function isAlive(line: SandLine): boolean {
   return line.points.some((p) => p.s > GONE);
 }
+
+export interface LoopShape {
+  closed: boolean;
+  cx: number;
+  cz: number;
+  /** Mean distance from the centre (m). */
+  radius: number;
+}
+
+/** Is this line a closed loop (a shell, for "Add a crab")? Where is it, and how big? */
+export function loopShape(points: readonly { x: number; z: number }[]): LoopShape {
+  const n = Math.max(1, points.length);
+  let cx = 0, cz = 0, minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of points) {
+    cx += p.x / n;
+    cz += p.z / n;
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+  }
+  let radius = 0;
+  for (const p of points) radius += Math.hypot(p.x - cx, p.z - cz) / n;
+  const extent = Math.max(maxX - minX, maxZ - minZ);
+  const first = points[0], last = points[points.length - 1];
+  const gap = first && last ? Math.hypot(last.x - first.x, last.z - first.z) : Infinity;
+  const length = lineLength(points);
+  const closed = points.length > 8 && extent > 0.22 && gap < Math.max(0.2, 0.3 * extent) && length > 2.3 * extent;
+  return { closed, cx, cz, radius };
+}

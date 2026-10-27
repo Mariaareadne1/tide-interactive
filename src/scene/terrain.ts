@@ -66,6 +66,42 @@ float speck(vec2 p, float scale, float density, float radius, out float id) {
   return on * smoothstep(radius, radius * 0.6, length(fract(c) - off));
 }
 
+// Cellular lace: the distance to the nearest of a set of drifting points, and the gap
+// to the second nearest. Foam gathers along the cell walls, where that gap is small.
+vec2 cells(vec2 p, float t) {
+  vec2 n = floor(p), f = fract(p);
+  float d1 = 8.0, d2 = 8.0;
+  for (int j = -1; j <= 1; j++) {
+    for (int i = -1; i <= 1; i++) {
+      vec2 g = vec2(float(i), float(j));
+      vec2 o = vec2(hash12(n + g), hash12(n + g + 19.7));
+      o = 0.5 + 0.42 * sin(t + 6.2831 * o);
+      vec2 r = g + o - f;
+      float d = dot(r, r);
+      if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) { d2 = d; }
+    }
+  }
+  return vec2(sqrt(d1), sqrt(d2) - sqrt(d1));
+}
+/** A web of foam threads (1 on a thread). */
+float lace(vec2 p, float t, float thick) {
+  // warp the cells so the web never looks like paving
+  p += vec2(vnoise(p * 0.7 + t * 0.1), vnoise(p * 0.7 + 5.3 - t * 0.1)) * 0.9;
+  return 1.0 - smoothstep(thick * 0.35, thick, cells(p, t).y);
+}
+/** White water: mostly foam, with round holes where the water shows through. */
+float froth(vec2 p, float t, float hole) {
+  p += vec2(vnoise(p * 0.6 - t * 0.1), vnoise(p * 0.6 + 3.7)) * 0.7;
+  // holes of varied size, and only half see-through: foam is mostly white
+  float h = hole * (0.55 + 0.6 * vnoise(p * 0.9));
+  return mix(0.45, 1.0, smoothstep(h * 0.7, h, cells(p, t).x));
+}
+/** Foam comes in patches: 1 where there is some, fading out between. */
+float patches(vec2 p, float cover) {
+  float n = vnoise(p) * 0.65 + vnoise(p * 2.3 + 7.1) * 0.35;
+  return smoothstep(1.0 - cover, 1.0 - cover + 0.22, n);
+}
+
 vec3 seaPaint(vec2 xz, float d, float calm) {
   // turquoise shallows into deeper blue, laid in soft washes
   float wash = fbm2lite(xz * 0.18 + vec2(uTime * 0.01, 0.0));
@@ -98,34 +134,55 @@ void main() {
   if (u < 0.0) {
     // ---- the sea ----
     float d = -u;
+    float t = uTime;
     vec3 albedo = seaPaint(xz, d, calm);
-    // painted foam lines drifting shoreward, broken and lacy
-    float drift = uTime * mix(0.09, 0.05, calm);
-    float band = fract(d * 0.55 - drift + (vnoise(xz * vec2(0.4, 1.0)) - 0.5) * 0.35);
-    float lace = smoothstep(0.45, 0.62, vnoise(vec2(xz.x * 2.2, d * 4.0) + uTime * 0.05));
-    float foamLine = smoothstep(0.07, 0.0, abs(band - 0.5)) * lace * smoothstep(4.5, 1.0, d);
-    // the next wave's crest gathering and breaking as it nears the shore
+    // the swell: broad soft bands rolling in, a lighter back and a deeper trough
+    float swell = sin(d * 1.3 + t * mix(0.55, 0.32, calm) + (vnoise(xz * vec2(0.25, 0.8)) - 0.5) * 1.4);
+    albedo *= 1.0 + 0.07 * swell * smoothstep(0.3, 2.2, d);
+    // the next wave steepening: its face turns a deeper, clearer green before it breaks
     float approach = clamp((uWaveTau - 0.72) / 0.28, 0.0, 1.0);
+    float coming = step(0.72, uWaveTau);
     float crestD = mix(3.2, 0.15, approach);
-    float crest = exp(-pow((d - crestD) / (0.12 + 0.1 * approach), 2.0)) * step(0.72, uWaveTau)
-                * (0.4 + 0.6 * smoothstep(0.35, 0.65, vnoise(vec2(xz.x * 1.6, 3.0) + uTime * 0.2)));
-    // the surge at the shoreline as a wave runs in
-    float surge = smoothstep(0.6, 0.0, d) * (1.0 - smoothstep(0.0, 0.25, uWaveTau)) * step(0.0005, uWaveTau);
-    float foam = max(foamLine * 0.75, max(crest * 0.9, surge * lace));
-    // a soft wet line where the sea meets the sand
-    foam = max(foam, smoothstep(0.12, 0.0, d) * 0.5 * (0.5 + 0.5 * vnoise(xz * 5.0)));
+    float face = exp(-pow((d - crestD - 0.32) / 0.3, 2.0)) * coming;
+    albedo = mix(albedo, albedo * vec3(0.78, 0.95, 0.9), face * 0.55);
+
     float sunVis = castLight(vWorld, 0.03) * clouds;
     col = paintLight(albedo, vec3(0.0, 1.0, 0.0), sunVis, 1.0, 0.2);
-    // glints: short white dashes that twinkle, and slow light streaks
-    // a thin pointed dash in each lit cell, like a flick of the brush
-    vec2 g = vec2(xz.x * 2.2, d * 9.0);
-    vec2 gc = fract(g) - 0.5;
-    float flick = smoothstep(0.5, 0.0, abs(gc.y) * 5.0 + abs(gc.x) * 1.6);
-    float glint = step(0.993, hash12(floor(g) + floor(uTime * 0.5 + hash12(floor(g)) * 5.0) * 7.0)) * flick * smoothstep(0.4, 1.5, d);
-    float streak = smoothstep(0.72, 0.88, vnoise(vec2(xz.x * 0.3 - uTime * 0.03, d * 2.2))) * 0.25;
+
+    // caustics: a slow net of light on the sand under the shallows
+    // (each pattern is only worked out where it can show: the cell search is the costly part)
+    if (d < 1.1) {
+      float caus = lace(xz * vec2(3.4, 4.0) + vec2(0.0, t * 0.04), t * 0.6, 0.1) * smoothstep(1.1, 0.15, d) * smoothstep(0.0, 0.15, d);
+      col += uSunColor * caus * 0.045 * sunVis;
+    }
+    // foam lines drifting shoreward: broken threads of lace, not stripes
+    float drift = t * mix(0.09, 0.05, calm);
+    float band = fract(d * 0.55 - drift + (vnoise(xz * vec2(0.4, 1.0)) - 0.5) * 0.35);
+    float bandMask = smoothstep(0.13, 0.0, abs(band - 0.5)) * smoothstep(4.6, 0.8, d) * (0.4 + 0.6 * vnoise(xz * vec2(0.6, 1.5) + t * 0.03));
+    float foamLine = bandMask < 0.003 ? 0.0 : bandMask * lace(xz * vec2(2.6, 4.2) + vec2(t * 0.04, -t * 0.07), t * 0.35, 0.16) * patches(xz * vec2(0.5, 1.2) + t * 0.02, 0.6);
+    // the crest breaking into white water, which tumbles in toward the shore
+    float crestBand = exp(-pow((d - crestD) / (0.09 + 0.12 * approach), 2.0)) * coming;
+    float crest = crestBand < 0.003 ? 0.0 : crestBand * (0.55 + 0.45 * lace(xz * vec2(2.4, 3.2) + vec2(0.0, t * 0.3), t * 1.2, 0.3));
+    float whiteMask = smoothstep(crestD + 0.05, crestD - 0.6, d) * smoothstep(0.0, 0.25, approach) * coming;
+    float white = whiteMask < 0.003 ? 0.0 : whiteMask
+                * froth(xz * vec2(8.0, 9.5) + vec2(0.0, t * 0.5), t * 1.5, 0.3) * patches(xz * vec2(0.9, 1.6) - t * 0.1, 0.7) * 0.8;
+    // the surge at the shoreline as the wave runs in
+    float surgeMask = smoothstep(0.7, 0.0, d) * (1.0 - smoothstep(0.0, 0.25, uWaveTau)) * step(0.0005, uWaveTau);
+    float surge = surgeMask < 0.003 ? 0.0 : surgeMask
+                * froth(xz * vec2(8.5, 10.0) + vec2(0.0, -t * 0.6), t * 1.2, 0.3) * patches(xz * vec2(0.8, 1.5) + t * 0.1, 0.75);
+    float foam = max(foamLine * 0.8, max(crest * 0.95, max(white, surge * 0.9)));
+    // a soft wet line where the sea meets the sand
+    foam = max(foam, smoothstep(0.1, 0.0, d) * 0.55 * (0.5 + 0.5 * vnoise(xz * 5.0)));
+    // spray: a few drops flung up off the breaking crest
+    float sid;
+    float spray = speck(xz + vec2(0.0, -t * 0.4), 18.0, 0.18, 0.3, sid) * crestBand * step(0.5, approach);
     float rip = rippleRings(xz);
-    col = mix(col, uSunColor * srgb(vec3(0.97, 0.98, 0.95)), clamp(foam + rip * 0.6, 0.0, 0.9));
-    col += uSunColor * (glint * 0.5 + streak * 0.35) * sunVis;
+    col = mix(col, uSunColor * srgb(vec3(0.97, 0.98, 0.95)), clamp(foam + spray + rip * 0.6, 0.0, 0.92));
+    // sun-glitter on the backs of the swell: round sparkles that come and go
+    float gid;
+    float glit = speck(xz + vec2(t * 0.05, 0.0), 6.0, 0.08, 0.16, gid) * step(0.6, fract(gid * 13.0 + t * 0.35)) * smoothstep(0.4, 1.8, d) * smoothstep(0.0, 0.8, swell);
+    float streak = smoothstep(0.72, 0.88, vnoise(vec2(xz.x * 0.3 - t * 0.03, d * 2.2))) * 0.22;
+    col += uSunColor * (glit * 0.6 + streak * 0.35) * sunVis;
     // the sky's pale reflection, stronger at a grazing look
     col = mix(col, srgb(vec3(0.86, 0.93, 0.96)), pow(1.0 - max(V.y, 0.0), 3.0) * 0.25);
   } else {
@@ -207,15 +264,24 @@ void main() {
       // sand seen through a film of clear water: a pale turquoise wash, glassier where it's deeper
       vec3 film = mix(col * vec3(0.9, 0.98, 1.0), uSunColor * water, 0.22 + 0.3 * smoothstep(0.0, 1.6, depth));
       col = mix(col, film, sheet * 0.8);
-      // a lacy foam edge, thicker as it runs up, a fine broken thread as it draws back
-      float laceN = vnoise(vec2(xz.x * 3.0, xz.y * 3.0) + vec2(t * 0.3, 0.0)) * 0.6 + vnoise(xz * 9.0 - t * 0.4) * 0.4;
-      float edgeW = up ? 0.22 : 0.09;
-      float rim = smoothstep(edgeW, 0.0, abs(depth - edgeW * 0.6)) * smoothstep(0.32, 0.55, laceN);
-      // foam streaks drawn along by the water inside the sheet
-      float streaks = smoothstep(0.62, 0.8, vnoise(vec2(xz.x * 2.6, depth * 6.0 - t * (up ? 1.5 : -0.8)))) * sheet * smoothstep(1.4, 0.1, depth);
-      float holes = smoothstep(0.35, 0.5, vnoise(xz * 14.0 + t * 0.2));
-      float foam = clamp(rim * holes + streaks * 0.55, 0.0, 1.0);
-      col = mix(col, uSunColor * srgb(vec3(0.97, 0.98, 0.96)), foam * 0.85);
+      // the leading edge: a bright thread of foam, and behind it a band of lace —
+      // thick and tumbling as the wave runs up, a fine broken net as it draws back
+      float flow = up ? -t * 0.55 : t * 0.3;
+      // running up it froths; drawing back it thins to a net of threads
+      float edgeW = up ? 0.3 : 0.12;
+      float bandMask = smoothstep(edgeW, 0.0, depth) * step(0.0, depth);
+      float web = bandMask < 0.003 ? 0.0 : up ? froth(xz * vec2(8.0, 9.5) + vec2(0.0, flow), t * 1.1, 0.3) : lace(xz * vec2(3.0, 4.2) + vec2(0.0, flow), t * 1.1, 0.2);
+      float thread = smoothstep(0.035, 0.0, abs(depth - 0.02)) * (0.6 + 0.4 * vnoise(xz * 11.0 + t));
+      float band = bandMask * patches(xz * vec2(1.4, 2.0) + vec2(0.0, flow * 0.3), up ? 0.85 : 0.65);
+      // trails of foam drawn out along the flow inside the sheet
+      float trails = depth > 1.0 ? 0.0 : lace(xz * vec2(3.0, 1.4) + vec2(0.0, flow * 0.8), t * 0.5, 0.1) * patches(xz * vec2(0.9, 0.5) + vec2(0.0, flow * 0.4), 0.3) * sheet * smoothstep(1.0, 0.15, depth) * 0.4;
+      float foam = clamp(max(thread * 0.9, band * web) + trails, 0.0, 1.0);
+      col = mix(col, uSunColor * srgb(vec3(0.97, 0.98, 0.96)), foam * 0.88);
+      // as the water slips back, the sand just above it glistens like glass for a moment
+      if (!up) {
+        float glisten = smoothstep(-0.7, -0.05, depth) * smoothstep(0.02, -0.05, depth);
+        col = mix(col, srgb(vec3(0.9, 0.95, 0.97)) * uSunColor, glisten * (0.18 + 0.3 * pow(1.0 - max(V.y, 0.0), 2.0)));
+      }
       // light catching the moving water: small round sparkles
       float gid2;
       float sparkle = speck(xz + vec2(0.0, t * (up ? -0.4 : 0.25)), 26.0, 0.012, 0.25, gid2);

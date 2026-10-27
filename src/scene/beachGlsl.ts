@@ -101,8 +101,8 @@ float segDist(vec2 p, vec2 a, vec2 b) {
   float t = len2 > 0.0 ? clamp(dot(p - a, ab) / len2, 0.0, 1.0) : 0.0;
   return length(p - (a + t * ab));
 }
-vec2 grooveProfile(float d, float wet, float pressure) {
-  float w = GROOVE_HW * (1.25 - 0.25 * wet);
+vec2 grooveProfile(float d, float wet, float pressure, float width) {
+  float w = GROOVE_HW * width * (1.25 - 0.25 * wet);
   float depth = smoothstep(w, w * 0.3, d) * pressure * (0.72 + 0.28 * wet);
   float lipD = (d - w * 1.25) / (w * (0.5 + 0.25 * (1.0 - wet)));
   float lip = exp(-lipD * lipD) * pressure * (0.85 + 0.35 * (1.0 - wet));

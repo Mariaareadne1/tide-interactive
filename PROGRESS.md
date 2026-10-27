@@ -7,9 +7,10 @@
 | 2. Sand heightmap and live drawing | done — live groove with trough and lip, wet vs dry character, undo |
 | 3. Waves | done — deterministic schedule, run-up / pause / draw-back, foam edge, wet gloss and drying, gradual erosion, foam and bubbles in grooves |
 | 4. Crabs | done — model, sideways scuttle, following lines (corners, ends), word strokes grouped, fleeing or burrowing from waves and returning, pottering and greeting; selection, Follow / Wave / Burrow, dragging |
+| 6. Second round (2026-10-27) | done — draw a crab (Add a crab + a closed loop), everyone lines up and dances to a synthesised calypso, footprints and burrow hollows, sound (surf, fingertip, crabs, song; mute remembered; recordings carry it), lacier sea foam, froth, caustics and a glisten on receding water |
 | 5. UI, capture, mobile, reduced motion, polish, demo, docs | done — see README; demo at `docs/media/tide-demo.mp4` (18.9 s, 1600 × 900 source, 59.6 fps) |
 
-Checks at the last commit: 20 unit tests, 13 E2E tests on dev and on the production build, typecheck, lint and build all pass.
+Checks at the last commit: 31 unit tests, 19 E2E tests on dev and on the production build, typecheck, lint and build all pass.
 
 Deployed 2026-10-27 at https://tide-interactive.vercel.app (Vercel CLI; redeploy with `npx vercel --prod` after pushing).
 

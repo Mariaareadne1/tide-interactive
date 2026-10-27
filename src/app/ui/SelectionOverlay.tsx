@@ -92,12 +92,15 @@ function CrabBar({ app, id }: { app: TideApp; id: number }) {
   if (!c) return null;
   const following = c.lineId !== null || c.waitingForLine;
   const buried = c.mode === 'burrowed';
+  const dancing = app.beach.dancing;
   return (
     <>
       <span className="bar-title">Crab</span>
       <Chip label="Follow a line" icon="follow" title="Follow a line (F)" on={following} onClick={() => app.followLine(id)} />
       <Chip label="Wave" icon="wave" title="Wave (W)" onClick={() => app.waveClaws(id)} />
       <Chip label={buried ? 'Come out' : 'Burrow'} icon="burrow" title="Burrow / come out (B)" on={buried} onClick={() => app.toggleBurrow(id)} />
+      <span className="sep" />
+      <Chip label="Dance" icon="dance" title="Everyone lines up and dances (D)" on={dancing} onClick={() => app.dance()} />
     </>
   );
 }

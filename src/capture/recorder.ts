@@ -14,9 +14,16 @@ const CANDIDATES = [
   'video/webm;codecs=vp8',
   'video/webm',
 ];
+const WITH_AUDIO = [
+  'video/mp4;codecs=avc1.640028,mp4a.40.2',
+  'video/mp4;codecs=avc1,mp4a.40.2',
+  'video/mp4;codecs=avc1,opus',
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+];
 
-export function pickRecordingType(isSupported: (t: string) => boolean = (t) => MediaRecorder.isTypeSupported(t)): string | null {
-  return CANDIDATES.find((t) => isSupported(t)) ?? null;
+export function pickRecordingType(isSupported: (t: string) => boolean = (t) => MediaRecorder.isTypeSupported(t), withAudio = false): string | null {
+  return (withAudio ? WITH_AUDIO.find((t) => isSupported(t)) : null) ?? CANDIDATES.find((t) => isSupported(t)) ?? null;
 }
 
 export interface Recording {
@@ -29,13 +36,16 @@ export interface Recording {
 export interface RecordOptions {
   seconds: number;
   fps?: number;
+  /** Sound to record alongside (the surf, the crabs' song). */
+  audio?: MediaStream | null;
   /** Resolves early when it settles (for scripted demos). */
   until?: Promise<unknown>;
 }
 
 export async function recordCanvas(canvas: HTMLCanvasElement, options: RecordOptions): Promise<Recording> {
   if (typeof MediaRecorder === 'undefined') throw new Error('This browser cannot record video.');
-  const type = pickRecordingType();
+  const audioTracks = options.audio?.getAudioTracks() ?? [];
+  const type = pickRecordingType(undefined, audioTracks.length > 0);
   if (!type) throw new Error('No supported video format for recording.');
   const fps = options.fps ?? 60;
 
@@ -55,6 +65,8 @@ export async function recordCanvas(canvas: HTMLCanvasElement, options: RecordOpt
   requestAnimationFrame(() => (raf = requestAnimationFrame(frame)));
 
   const stream = out.captureStream(fps);
+  // only when the container can carry it: otherwise the clip is silent rather than failing
+  if (WITH_AUDIO.includes(type)) for (const track of audioTracks) stream.addTrack(track);
   const recorder = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 18_000_000 });
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => {
@@ -70,7 +82,7 @@ export async function recordCanvas(canvas: HTMLCanvasElement, options: RecordOpt
   recorder.stop();
   await stopped;
   cancelAnimationFrame(raf);
-  stream.getTracks().forEach((t) => t.stop());
+  stream.getVideoTracks().forEach((t) => t.stop());
   const blob = new Blob(chunks, { type: type.split(';')[0] });
   if (blob.size === 0) throw new Error('The recording came out empty.');
   return { blob, type, extension: type.startsWith('video/mp4') ? 'mp4' : 'webm', durationMs: performance.now() - started };

@@ -3,9 +3,13 @@ import type { Engine } from '../engine/Engine';
 import type { WaveClock } from '../sea/waves';
 import { isAlive, lineLength, type SandLine } from '../sand/lines';
 import { CrabController, type CrabSpec, type CrabWorld } from './CrabController';
-import { CRAB_COLOURS, CRAB_SCALE, CrabView } from './CrabView';
+import { CRAB_COLOURS, CrabView } from './CrabView';
+import { CRAB_SCALE } from './anatomy';
 import { buildPath, longestRun, nearestOnPath } from './path';
 import { Puffs } from './Puffs';
+import { danceSlots, SONG_SECONDS } from './dance';
+import { isDrawable, surfaceAt } from '../scene/beach';
+import type { Segment } from '../sand/SandField';
 
 /**
  * The beach's four crabs, each a controller (where it goes, what it does)
@@ -13,6 +17,14 @@ import { Puffs } from './Puffs';
  * crab scuttles over to walk along it, and on a long line a second one may
  * come and watch.
  */
+
+/** No more crabs than this on one beach (the four who live here and up to six drawn ones). */
+export const MAX_CRABS = 10;
+
+/** Marks crabs leave in the sand. */
+export interface SandMarks {
+  stamp(segments: Segment[]): void;
+}
 
 /** Where each crab lives: two on the wet sand, one up by the dry sand, one near the high-water mark. */
 export const CRAB_HOMES: readonly CrabSpec[] = [
@@ -34,31 +46,89 @@ export class Beach {
   readonly crabs: Crab[];
   readonly puffs = new Puffs();
   onModeChange: (() => void) | null = null;
+  /** A crab dug in, or popped out (for sound). */
+  onPuff: ((kind: 'dig' | 'pop') => void) | null = null;
+  /** When the current dance's song starts (engine seconds), or null. */
+  danceStart: number | null = null;
+  /** Footprints and hollows pressed so far, and the latest (for tests). */
+  marksMade = 0;
+  lastMark: { x: number; z: number } | null = null;
   private lines: readonly SandLine[] = [];
   private readonly world: CrabWorld;
   private readonly tmp = new THREE.Vector3();
 
-  constructor(private readonly engine: Engine, waves: WaveClock) {
+  constructor(private readonly engine: Engine, waves: WaveClock, private readonly marks: SandMarks | null = null) {
     this.group.name = 'crabs';
-    this.crabs = CRAB_HOMES.map((spec, i) => {
-      const controller = new CrabController({ ...spec, home: { ...spec.home } });
-      const view = new CrabView(engine.world, CRAB_COLOURS[i % CRAB_COLOURS.length], spec.seed);
-      this.group.add(view.root);
-      controller.onModeChange = () => this.onModeChange?.();
-      controller.onPuff = (x, z, s) => this.puffs.burst(x, z, s);
-      return {
-        id: spec.id,
-        controller,
-        view,
-        centre: (target: THREE.Vector3) => target.set(controller.x, view.root.position.y + view.body.position.y * CRAB_SCALE, controller.z),
-      };
-    });
+    this.crabs = CRAB_HOMES.map((spec) => this.make({ ...spec, home: { ...spec.home } }));
     this.group.add(this.puffs.points);
     this.world = {
       waves,
       line: (id) => this.lines.find((l) => l.id === id),
       others: (id) => this.crabs.filter((c) => c.id !== id).map((c) => ({ x: c.controller.x, z: c.controller.z })),
     };
+  }
+
+  private make(spec: CrabSpec): Crab {
+    const controller = new CrabController(spec);
+    const size = spec.size ?? 1;
+    const view = new CrabView(this.engine.world, CRAB_COLOURS[(spec.id - 1) % CRAB_COLOURS.length], spec.seed, size);
+    this.group.add(view.root);
+    controller.onModeChange = () => this.onModeChange?.();
+    controller.onPuff = (x, z, s) => {
+      this.puffs.burst(x, z, s * size);
+      this.onPuff?.(s >= 1 ? 'dig' : 'pop');
+      // digging in or popping out leaves a little hollow
+      this.mark([{ ax: x, az: z, bx: x, bz: z, pressure: 0.42, width: 1.6 * size }]);
+    };
+    controller.onStep = (feet) => this.mark(feet.map((f) => ({ ax: f.x, az: f.z, bx: f.x, bz: f.z, pressure: 0.5, width: 0.34 * size })));
+    return {
+      id: spec.id,
+      controller,
+      view,
+      centre: (target: THREE.Vector3) => target.set(controller.x, view.root.position.y + view.body.position.y * CRAB_SCALE * size, controller.z),
+    };
+  }
+
+  /** Press marks into the sand (never into the sea, rocks or dunes). */
+  private mark(segs: Segment[]): void {
+    const on = segs.filter((s) => isDrawable(surfaceAt(s.ax, s.az)));
+    if (!on.length) return;
+    this.marks?.stamp(on);
+    this.marksMade += on.length;
+    this.lastMark = { x: on[on.length - 1].ax, z: on[on.length - 1].az };
+  }
+
+  /** A shell drawn in the sand comes to life: a new crab digs its way out there. */
+  hatch(x: number, z: number, size: number): Crab | null {
+    if (this.crabs.length >= MAX_CRABS) return null;
+    const id = Math.max(...this.crabs.map((c) => c.id)) + 1;
+    const crab = this.make({ id, seed: id * 3 + 1, home: { x, z }, burrowiness: ((id * 0.618) % 1) * 0.8, size });
+    this.crabs.push(crab);
+    crab.controller.hatch(this.engine.elapsed);
+    this.puffs.burst(x, z, 1.4 * size);
+    this.onModeChange?.();
+    return crab;
+  }
+
+  get dancing(): boolean {
+    return this.danceStart !== null && this.engine.elapsed < this.danceStart + SONG_SECONDS;
+  }
+
+  /**
+   * Everyone line up! Each crab takes a place in a row along the shore
+   * (left to right as they stand, so nobody crosses), and the song starts
+   * once the farthest has had time to scuttle over. Returns the start time.
+   */
+  dance(): number {
+    const t = this.engine.elapsed;
+    const dancers = this.crabs.filter((c) => c.controller.mode !== 'held').sort((a, b) => a.controller.x - b.controller.x);
+    const slots = danceSlots(dancers.length);
+    const far = Math.max(0, ...dancers.map((c, i) => Math.hypot(slots[i].x - c.controller.x, slots[i].z - c.controller.z)));
+    const start = t + Math.min(6, Math.max(1.8, far / 0.95 + 1.1));
+    dancers.forEach((c, i) => c.controller.dance(t, slots[i], i, dancers.length, start));
+    this.danceStart = start;
+    this.onModeChange?.();
+    return start;
   }
 
   get(id: number): Crab | undefined {

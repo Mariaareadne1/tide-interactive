@@ -17,6 +17,10 @@ export interface AppState {
   readonly fatal: string | null;
   /** Bumped when a crab's mode changes, so its action bar can re-read it. */
   readonly crabTick: number;
+  /** "Add a crab" is on: the next closed shape drawn hatches one. */
+  readonly addingCrab: boolean;
+  readonly crabCount: number;
+  readonly soundOn: boolean;
 }
 
 type Listener = () => void;
@@ -32,6 +36,9 @@ export class Store {
     recording: false,
     fatal: null,
     crabTick: 0,
+    addingCrab: false,
+    crabCount: 4,
+    soundOn: true,
   };
   private readonly listeners = new Set<Listener>();
   private toastId = 0;

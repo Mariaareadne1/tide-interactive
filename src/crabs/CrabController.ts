@@ -5,6 +5,8 @@ import { isAlive, type SandLine } from '../sand/lines';
 import { behave, DURATION, type BehaviourName } from './behaviours';
 import { blendPose, ramp, type Pose } from './pose';
 import { buildPath, longestRun, nearestOnPath, pointAt, type Path } from './path';
+import { footfalls, footWorld } from './anatomy';
+import { BEAT, SONG_BEATS, danceFrame, rowTangent, type DanceFrame } from './dance';
 
 /**
  * One crab's mind. Plans (potter about, go and walk along a fresh line,
@@ -20,6 +22,8 @@ export interface CrabSpec {
   readonly home: { x: number; z: number };
   /** Chance of burrowing (rather than running) when a wave comes. */
   readonly burrowiness: number;
+  /** Relative size (drawn crabs come in sizes; the beach's own are 1). */
+  readonly size?: number;
 }
 
 export interface CrabWorld {
@@ -39,7 +43,8 @@ type Plan =
   | { kind: 'hide'; since: number }
   | { kind: 'burrowed' }
   | { kind: 'emerge'; until: number; then: Plan | null }
-  | { kind: 'held' };
+  | { kind: 'held' }
+  | { kind: 'dance'; slot: { x: number; z: number }; index: number; n: number; start: number; arrived: boolean };
 
 export type CrabMode = Plan['kind'];
 
@@ -69,6 +74,12 @@ export class CrabController {
   onModeChange: (() => void) | null = null;
   /** Called when sand should puff up around the crab (burrowing, popping out). */
   onPuff: ((x: number, z: number, strength: number) => void) | null = null;
+  /** Called with the feet that came down this frame (for footprints). */
+  onStep: ((feet: { x: number; z: number }[]) => void) | null = null;
+  /** The dance frame this frame, while dancing in the row. */
+  dancing: DanceFrame | null = null;
+  /** Lift off the ground (m), from hops in the dance. */
+  hop = 0;
 
   private plan: Plan;
   private resume: Plan | null = null;
@@ -107,12 +118,16 @@ export class CrabController {
   /** Free to go and look at a new line: not carried, not dug in or waving on request, not on a line already. */
   get available(): boolean {
     const k = this.plan.kind;
-    return k !== 'held' && k !== 'burrowed' && k !== 'wave' && this.lineId === null;
+    return k !== 'held' && k !== 'burrowed' && k !== 'wave' && k !== 'dance' && this.lineId === null;
   }
 
   private setPlan(plan: Plan): void {
     const changed = plan.kind !== this.plan.kind;
     this.plan = plan;
+    if (plan.kind !== 'dance') {
+      this.dancing = null;
+      this.hop = 0;
+    }
     if (changed) this.onModeChange?.();
   }
 
@@ -191,6 +206,25 @@ export class CrabController {
     this.onPuff?.(this.x, this.z, 0.8);
   }
 
+  /** Come up out of the sand where a shell was drawn. */
+  hatch(t: number): void {
+    this.behaviour = this.prevBehaviour = 'buried';
+    this.behaviourStart = this.prevStart = t;
+    this.pose = behave('buried', 0, this.spec.seed);
+    // a moment under the shell that was drawn, then up as soon as the sea lets it
+    this.setPlan({ kind: 'hide', since: t - 1.0 });
+  }
+
+  /** Take place `index` of `n` in the row at `slot`, and dance when the song starts at `start`. */
+  dance(t: number, slot: { x: number; z: number }, index: number, n: number, start: number): void {
+    if (this.plan.kind === 'held') return;
+    const plan: Plan = { kind: 'dance', slot, index, n, start, arrived: false };
+    this.resume = null;
+    this.waitingForLine = false;
+    if (this.plan.kind === 'burrowed' || this.plan.kind === 'hide') this.surface(t, plan);
+    else this.setPlan(plan);
+  }
+
   grab(): void {
     this.resume = null;
     this.setPlan({ kind: 'held' });
@@ -219,8 +253,14 @@ export class CrabController {
     this.watchTheSea(t, world);
     this.step(dt, t, world);
     this.speed = dt > 0 ? Math.hypot(this.x - px, this.z - pz) / dt : 0;
-    // legs cycle with distance covered (and paddle in the air when held)
-    this.phase += (this.plan.kind === 'held' ? 14 : this.speed * 38) * dt;
+    // legs cycle with distance covered (and paddle in the air when held, and turn on the spot in the dance)
+    const prevPhase = this.phase;
+    const danceGait = this.dancing ? this.dancing.pose.gait : 0;
+    this.phase += (this.plan.kind === 'held' ? 14 : Math.max(this.speed * 38, danceGait * 12)) * dt;
+    if (this.onStep && this.plan.kind !== 'held' && !this.burrowedish && this.hop < 0.01) {
+      const down = footfalls(prevPhase, this.phase);
+      if (down.length) this.onStep(down.map((i) => footWorld(this.x, this.z, this.heading, this.spec.size ?? 1, i)));
+    }
 
     const moving = this.speed > 0.06 && this.plan.kind !== 'held';
     if (moving && !this.burrowedish) this.play('walk', t);
@@ -229,6 +269,11 @@ export class CrabController {
     const f = ramp(t - this.fadeStart, 0, CROSSFADE);
     if (f < 1) pose = blendPose(local(this.prevBehaviour, this.prevStart), pose, f);
     if (this.behaviour === 'walk') pose.gait = Math.min(1, this.speed / 0.3);
+    if (this.dancing) {
+      const k = this.plan.kind === 'dance' ? ramp((t - this.plan.start) / BEAT, 0, 0.6) : 0;
+      pose = blendPose(pose, this.dancing.pose, k);
+      pose.bob += this.hop;
+    }
     this.pose = pose;
   }
 
@@ -261,6 +306,12 @@ export class CrabController {
       return;
     }
     if (!this.threatened(t, waves, 0.25)) return;
+    if (k === 'dance') {
+      // the music doesn't stop for the sea: dig in, eyes up, and pop back out to finish
+      this.resume = this.plan;
+      this.dig(t, { kind: 'hide', since: t });
+      return;
+    }
     // keep what it was doing, to carry on afterwards
     if (k === 'follow' || k === 'approach') this.resume = this.plan;
     const wave = waves.at(t + LOOKAHEAD) ?? waves.at(t);
@@ -350,13 +401,54 @@ export class CrabController {
             this.setPlan(next);
             return;
           }
+          if (next?.kind === 'dance' && (t - next.start) / BEAT < SONG_BEATS) {
+            this.setPlan(next);
+            return;
+          }
           this.idle(t);
         }
         return;
       case 'held':
         this.play('held', t);
         return;
+      case 'dance':
+        return this.danceStep(plan, dt, t);
     }
+  }
+
+  private danceStep(plan: Extract<Plan, { kind: 'dance' }>, dt: number, t: number): void {
+    const beat = (t - plan.start) / BEAT;
+    if (beat >= SONG_BEATS) {
+      this.dancing = null;
+      this.hop = 0;
+      return this.idle(t);
+    }
+    if (beat < 0) {
+      // gathering: into place, then face the front and wait for the music
+      this.dancing = null;
+      if (!plan.arrived) plan.arrived = this.walkToward(plan.slot.x, plan.slot.z, SPEED.approach, dt);
+      else {
+        this.turnToward(0, dt);
+        this.play('look', t);
+      }
+      return;
+    }
+    const f = danceFrame(beat, plan.index, plan.n);
+    const tan = rowTangent(plan.slot.x);
+    const tx = plan.slot.x + tan.x * f.along, tz = plan.slot.z + tan.z * f.along;
+    if (!plan.arrived) {
+      // late to the line: hurry into place, already moving to the music
+      plan.arrived = this.walkToward(tx, tz, SPEED.flee, dt);
+      this.dancing = null;
+      return;
+    }
+    this.x = tx;
+    this.z = tz;
+    // facing the front, plus any spin
+    this.heading = f.spin;
+    this.hop = f.hop;
+    this.dancing = f;
+    this.play('idle', t);
   }
 
   /** Pick a line back up after a wave, wherever it now is. */

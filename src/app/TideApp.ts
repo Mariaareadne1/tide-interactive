@@ -4,9 +4,12 @@ import type { Store, Selection } from '../state/store';
 import { Cove } from '../scene/Cove';
 import { baseWetness, isDrawable, surfaceAt, terrainHeight } from '../scene/beach';
 import { screenToTerrain } from '../interaction/terrainRay';
-import { erodeLines, groupFor, isAlive, lineLength, resample, type SandLine } from '../sand/lines';
+import { erodeLines, groupFor, isAlive, lineLength, loopShape, resample, type SandLine } from '../sand/lines';
 import type { Segment } from '../sand/SandField';
-import { Beach } from '../crabs/Beach';
+import { Beach, MAX_CRABS } from '../crabs/Beach';
+import { Sound } from '../audio/Sound';
+import { SONG_SECONDS } from '../crabs/dance';
+import { CRAB_SCALE } from '../crabs/anatomy';
 
 /**
  * Application commands. Pointer input and the interface call these; they
@@ -35,6 +38,10 @@ export class TideApp {
   readonly cove: Cove;
   readonly beach: Beach;
   readonly lines: SandLine[] = [];
+  readonly sound = new Sound();
+  /** How far the fingertip moved through the sand since the last frame (m). */
+  private drawn = 0;
+  private drawWet = 0;
   private pen: Pen | null = null;
   private nextLineId = 1;
   private drag: { id: number } | null = null;
@@ -43,7 +50,7 @@ export class TideApp {
 
   constructor(readonly engine: Engine, readonly store: Store) {
     this.cove = new Cove(engine);
-    this.beach = new Beach(engine, this.cove.waves);
+    this.beach = new Beach(engine, this.cove.waves, { stamp: (segs) => this.cove.sand.stamp(segs) });
     engine.scene.add(this.beach.group);
   }
 
@@ -56,9 +63,15 @@ export class TideApp {
         this.beach.update(dt, t, this.lines);
         const sel = this.store.get().selection;
         this.beach.setHighlight(sel?.id ?? null, this.hoverSel?.id ?? null);
+        const w = this.cove.waves.at(t);
+        const tau = this.cove.waves.tau(t);
+        this.sound.update({ tau, reach: w ? w.reach : 1 }, dt > 0 ? this.drawn / dt : 0, this.drawWet);
+        this.drawn = 0;
       }),
     );
-    this.beach.onModeChange = () => this.store.set({ crabTick: this.store.get().crabTick + 1 });
+    this.beach.onModeChange = () => this.store.set({ crabTick: this.store.get().crabTick + 1, crabCount: this.beach.crabs.length });
+    this.beach.onPuff = (kind) => (kind === 'dig' ? this.sound.dig() : this.sound.pop());
+    this.store.set({ soundOn: this.sound.enabled });
     this.store.set({ loading: false });
   }
 
@@ -120,6 +133,8 @@ export class TideApp {
       segs.push({ ax: x, az: z, bx: x, bz: z, pressure });
     } else {
       if (Math.hypot(x - pen.last.x, z - pen.last.z) < SPACING) return;
+      this.drawn += Math.hypot(x - pen.last.x, z - pen.last.z);
+      this.drawWet = baseWetness(x, z);
       const pts = resample([pen.last, { x, z }], SPACING).slice(1);
       let a = pen.last;
       for (const b of pts) {
@@ -143,6 +158,7 @@ export class TideApp {
       this.cove.sand.dropSnapshot(pen.line.id);
       return null;
     }
+    if (this.store.get().addingCrab && this.hatchFrom(pen.line)) return pen.line;
     pen.line.group = groupFor(pen.line, this.lines);
     this.store.set({ hasDrawn: true });
     this.refreshUndo();
@@ -152,6 +168,50 @@ export class TideApp {
 
   get drawing(): boolean {
     return this.pen !== null;
+  }
+
+  /**
+   * "Add a crab": a closed shape drawn in the sand is a shell. The groove
+   * smooths away as a crab, sized to the drawing, digs its way out of it.
+   */
+  private hatchFrom(line: SandLine): boolean {
+    const shape = loopShape(line.points);
+    if (!shape.closed) {
+      this.store.toast('Close the loop to draw a shell — that one stays a line.');
+      return false;
+    }
+    // the base crab's shell is ~0.3 m across the middle at the app's scale
+    const size = Math.min(1.5, Math.max(0.7, shape.radius / (0.17 * CRAB_SCALE)));
+    const crab = this.beach.hatch(shape.cx, shape.cz, size);
+    if (!crab) {
+      this.store.toast('The beach has all the crabs it can hold.');
+      this.store.set({ addingCrab: false });
+      return false;
+    }
+    this.undo(line.id);
+    this.store.set({ addingCrab: false, hasDrawn: true, crabCount: this.beach.crabs.length, selection: null });
+    return true;
+  }
+
+  toggleAddCrab(): void {
+    if (this.beach.crabs.length >= MAX_CRABS) {
+      this.store.toast('The beach has all the crabs it can hold.');
+      return;
+    }
+    this.store.set({ addingCrab: !this.store.get().addingCrab, selection: null });
+  }
+
+  /** Everyone on the beach lines up and dances to a song. */
+  dance(): void {
+    this.sound.unlock();
+    const start = this.beach.dance();
+    this.sound.song(start - this.engine.elapsed, SONG_SECONDS);
+  }
+
+  setSound(on: boolean): void {
+    this.sound.unlock();
+    this.sound.setEnabled(on);
+    this.store.set({ soundOn: on });
   }
 
   /** Abandon the line in progress (a second finger, Escape): the sand smooths back over it. */
@@ -286,5 +346,6 @@ export class TideApp {
     for (const u of this.unsub) u();
     this.beach.dispose();
     this.cove.dispose();
+    this.sound.dispose();
   }
 }
