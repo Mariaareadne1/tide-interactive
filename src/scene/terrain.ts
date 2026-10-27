@@ -1,0 +1,276 @@
+import * as THREE from 'three';
+import { TILE, terrainHeight, terrainNormal } from './beach';
+import { LIGHTING_GLSL, NOISE_GLSL, WORLD_UNIFORMS_GLSL } from './shaderChunks';
+import { BEACH_GLSL } from './beachGlsl';
+import { MAX_RIPPLES, type WorldUniforms } from './world';
+
+/**
+ * The painted cove in one surface: sand, the sheet of water a wave pushes
+ * up it, and the sea. Colour is laid in the way a gouache illustrator
+ * would — broad washes of pale gold, a darker band of wet sand, turquoise
+ * shallows into blue — then grain, ripple marks and dry-brush flecks over
+ * it, and a ragged edge where the paint runs out onto the paper.
+ *
+ * Lines pressed into the sand live in the heightmap (uSand): the vertex
+ * shader lowers the surface into them, and the fragment shader takes its
+ * normal from the heightmap per pixel so a 3 cm groove reads as pressed in
+ * under the painted light.
+ */
+
+const vertex = /* glsl */ `
+${WORLD_UNIFORMS_GLSL}
+${NOISE_GLSL}
+${BEACH_GLSL}
+varying vec3 vWorld;
+varying vec3 vNormal;
+void main() {
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  wp.y += grooveHeight(texture2D(uSand, sandUv(wp.xz)));
+  vWorld = wp.xyz;
+  vNormal = normal;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}
+`;
+
+const fragment = /* glsl */ `
+${WORLD_UNIFORMS_GLSL}
+${NOISE_GLSL}
+${LIGHTING_GLSL}
+${BEACH_GLSL}
+uniform vec4 uRipples[${MAX_RIPPLES}];
+varying vec3 vWorld;
+varying vec3 vNormal;
+
+float rippleRings(vec2 xz) {
+  float k = 0.0;
+  for (int i = 0; i < ${MAX_RIPPLES}; i++) {
+    vec4 r = uRipples[i];
+    float age = uTime - r.z;
+    if (age < 0.0 || age > 2.4 || r.w <= 0.0) continue;
+    float life = 1.0 - age / 2.4;
+    float d = length(xz - r.xy) - (0.08 + age * 0.5);
+    float w = 0.03 + age * 0.02;
+    k += exp(-pow(d / w, 2.0)) * r.w * life * life;
+    k += exp(-pow((length(xz - r.xy) - (0.04 + age * 0.3)) / (w * 0.8), 2.0)) * r.w * life * life * 0.5 * smoothstep(0.15, 0.5, age);
+  }
+  return min(k, 1.0);
+}
+
+// Round specks: grains, bubbles. cell = scale, returns 0..1 coverage, id via hash.
+float speck(vec2 p, float scale, float density, float radius, out float id) {
+  vec2 c = p * scale;
+  vec2 cell = floor(c);
+  id = hash12(cell + 0.37);
+  vec2 off = vec2(hash12(cell + 3.1), hash12(cell + 7.7)) * 0.5 + 0.25;
+  float on = step(1.0 - density, hash12(cell));
+  return on * smoothstep(radius, radius * 0.6, length(fract(c) - off));
+}
+
+vec3 seaPaint(vec2 xz, float d, float calm) {
+  // turquoise shallows into deeper blue, laid in soft washes
+  float wash = fbm2lite(xz * 0.18 + vec2(uTime * 0.01, 0.0));
+  vec3 shallow = srgb(vec3(0.5, 0.8, 0.76));
+  vec3 mid = srgb(vec3(0.3, 0.64, 0.72));
+  vec3 deep = srgb(vec3(0.2, 0.47, 0.64));
+  vec3 c = mix(shallow, mid, smoothstep(0.0, 1.6, d + (wash - 0.5) * 0.6));
+  c = mix(c, deep, smoothstep(1.4, 4.0, d + (wash - 0.5) * 0.8));
+  // sand showing through the very shallow water
+  c = mix(c, srgb(vec3(0.72, 0.78, 0.62)), smoothstep(0.5, 0.0, d) * 0.45);
+  // long dry-brush strokes along the swell
+  float stroke = vnoise(vec2(xz.x * 0.35 + uTime * 0.02, d * 5.0)) * 0.6 + vnoise(vec2(xz.x * 1.2, d * 13.0)) * 0.4;
+  c *= 0.94 + 0.1 * stroke;
+  return c;
+}
+
+void main() {
+  vec2 xz = vWorld.xz;
+  // dry-brush edge: paint thins, then breaks into specks on the paper
+  float edge = paintEdge(xz);
+  float coverEdge = smoothstep(-0.05, 0.5, edge);
+  if (hash12(floor(xz * 28.0)) > coverEdge * 1.08) discard;
+
+  float u = upBeach(xz);
+  float calm = uCalm;
+  vec3 V = normalize(cameraPosition - vWorld);
+  float clouds = cloudLight(xz);
+  vec3 col;
+
+  if (u < 0.0) {
+    // ---- the sea ----
+    float d = -u;
+    vec3 albedo = seaPaint(xz, d, calm);
+    // painted foam lines drifting shoreward, broken and lacy
+    float drift = uTime * mix(0.09, 0.05, calm);
+    float band = fract(d * 0.55 - drift + (vnoise(xz * vec2(0.4, 1.0)) - 0.5) * 0.35);
+    float lace = smoothstep(0.45, 0.62, vnoise(vec2(xz.x * 2.2, d * 4.0) + uTime * 0.05));
+    float foamLine = smoothstep(0.07, 0.0, abs(band - 0.5)) * lace * smoothstep(4.5, 1.0, d);
+    // the next wave's crest gathering and breaking as it nears the shore
+    float approach = clamp((uWaveTau - 0.72) / 0.28, 0.0, 1.0);
+    float crestD = mix(3.2, 0.15, approach);
+    float crest = exp(-pow((d - crestD) / (0.12 + 0.1 * approach), 2.0)) * step(0.72, uWaveTau)
+                * (0.4 + 0.6 * smoothstep(0.35, 0.65, vnoise(vec2(xz.x * 1.6, 3.0) + uTime * 0.2)));
+    // the surge at the shoreline as a wave runs in
+    float surge = smoothstep(0.6, 0.0, d) * (1.0 - smoothstep(0.0, 0.25, uWaveTau)) * step(0.0005, uWaveTau);
+    float foam = max(foamLine * 0.75, max(crest * 0.9, surge * lace));
+    // a soft wet line where the sea meets the sand
+    foam = max(foam, smoothstep(0.12, 0.0, d) * 0.5 * (0.5 + 0.5 * vnoise(xz * 5.0)));
+    float sunVis = castLight(vWorld, 0.03) * clouds;
+    col = paintLight(albedo, vec3(0.0, 1.0, 0.0), sunVis, 1.0, 0.2);
+    // glints: short white dashes that twinkle, and slow light streaks
+    // a thin pointed dash in each lit cell, like a flick of the brush
+    vec2 g = vec2(xz.x * 2.2, d * 9.0);
+    vec2 gc = fract(g) - 0.5;
+    float flick = smoothstep(0.5, 0.0, abs(gc.y) * 5.0 + abs(gc.x) * 1.6);
+    float glint = step(0.993, hash12(floor(g) + floor(uTime * 0.5 + hash12(floor(g)) * 5.0) * 7.0)) * flick * smoothstep(0.4, 1.5, d);
+    float streak = smoothstep(0.72, 0.88, vnoise(vec2(xz.x * 0.3 - uTime * 0.03, d * 2.2))) * 0.25;
+    float rip = rippleRings(xz);
+    col = mix(col, uSunColor * srgb(vec3(0.97, 0.98, 0.95)), clamp(foam + rip * 0.6, 0.0, 0.9));
+    col += uSunColor * (glint * 0.5 + streak * 0.35) * sunVis;
+    // the sky's pale reflection, stronger at a grazing look
+    col = mix(col, srgb(vec3(0.86, 0.93, 0.96)), pow(1.0 - max(V.y, 0.0), 3.0) * 0.25);
+  } else {
+    // ---- the sand ----
+    vec4 s = sandAt(xz);
+    // per-pixel normal from the heightmap, over the beach's gentle slope
+    vec2 tx = vec2(uSandTexel.x, 0.0), tz = vec2(0.0, uSandTexel.y);
+    vec2 uv = sandUv(xz);
+    float hx = grooveHeight(texture2D(uSand, uv + tx)) - grooveHeight(texture2D(uSand, uv - tx));
+    float hz = grooveHeight(texture2D(uSand, uv + tz)) - grooveHeight(texture2D(uSand, uv - tz));
+    vec2 step2 = 2.0 * vec2(HALF_X, HALF_Z) * 2.0 * uSandTexel;
+    vec3 Ng = normalize(vec3(-hx / step2.x, 1.0, -hz / step2.y));
+    vec3 N = normalize(vNormal + vec3(Ng.x, 0.0, Ng.z) * 2.0);
+
+    // ripple marks left by earlier tides, strongest on the lower beach
+    float rz = u * 7.5 + (vnoise(xz * 0.8) - 0.5) * 2.2 + sin(xz.x * 0.9) * 0.4;
+    float ripples = sin(rz) * smoothstep(0.2, 1.2, u) * smoothstep(4.8, 2.5, u) * (0.6 + 0.4 * vnoise(xz * 0.35 + 5.0));
+    N = normalize(N + vec3(0.0, 0.0, cos(rz) * 0.09) * smoothstep(0.2, 1.2, u) * smoothstep(4.8, 2.5, u));
+
+    float baseWet = 1.0 - smoothstep(WET_REACH * 0.55, WET_REACH, u + (vnoise(xz * 1.3) - 0.5) * 0.5);
+    float recent = s.b; // wetness left by the last wave
+    float wet = max(baseWet, recent * 0.85);
+    vec3 albedo = sandPaint(xz, wet);
+    albedo *= 1.0 + 0.035 * ripples;
+
+    // the high-water mark: a faint damp band where the big waves stop
+    float hw = highWaterU(xz.x);
+    albedo *= 1.0 - 0.07 * exp(-pow((u - hw + 0.15) / 0.35, 2.0)) * (0.5 + 0.5 * vnoise(xz * 2.0));
+    // dunes at the back: paler, with a cool green cast among the grass
+    float dune = smoothstep(0.2, -1.4, xz.y - duneZ(xz.x));
+    albedo = mix(albedo, albedo * vec3(1.02, 1.03, 0.95), dune * 0.6);
+
+    // grains: a fine round stipple, the odd dark or shell-pale one
+    float gid;
+    float grain = speck(xz, 85.0, 0.22, 0.32, gid);
+    albedo *= 1.0 + grain * (gid > 0.5 ? 0.12 : -0.14);
+    float fleck = speck(xz, 14.0, 0.035, 0.3, gid) * (1.0 - wet);
+    albedo = mix(albedo, albedo * 1.12 + srgb(vec3(0.05, 0.04, 0.02)), fleck * 0.8);
+
+    // the groove: damp and darker in the trough, a little pale lip pushed up either side
+    float trough = s.r;
+    float lip = s.g * (1.0 - s.r);
+    // pressing through the surface finds damper, warmer sand underneath
+    vec3 under = mix(vec3(0.8, 0.68, 0.54), vec3(0.64, 0.52, 0.4), wet);
+    albedo *= mix(vec3(1.0), under, smoothstep(0.05, 0.75, trough));
+    albedo = mix(albedo, albedo * vec3(1.1, 1.08, 1.04), smoothstep(0.1, 0.7, lip) * (0.7 - 0.4 * wet));
+    // a few grains knocked loose along the edges
+    float loose = speck(xz + 0.13, 120.0, 0.4, 0.38, gid) * smoothstep(0.15, 0.6, s.g) * (1.0 - smoothstep(0.3, 0.7, s.r));
+    albedo *= 1.0 + loose * (gid > 0.4 ? 0.16 : -0.2) * (1.2 - wet * 0.5);
+
+    float sunVis = castLight(vWorld, 0.025) * clouds;
+    col = paintLight(albedo, N, sunVis, 1.0, 0.22 - 0.08 * wet);
+    // cavity: the bottom of a groove is out of the open sky
+    col *= 1.0 - 0.22 * smoothstep(0.3, 1.0, trough);
+
+    // wet sand holds a glossy sheen of sky, freshest just after a wave
+    float gloss = recent * 0.8 + baseWet * 0.2;
+    float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+    col = mix(col, srgb(vec3(0.9, 0.9, 0.88)) * uSunColor, gloss * (0.04 + 0.16 * fres) * (0.6 + 0.4 * vnoise(xz * 0.7)));
+    vec3 H = normalize(uSunDir + V);
+    col += uSunColor * smoothstep(0.93, 0.995, dot(N, H)) * gloss * 0.35 * sunVis;
+
+    // foam caught in the grooves, its bubbles popping one by one as it drains
+    float bid;
+    float bubble = speck(xz, 48.0, 0.75, 0.42, bid);
+    float lingering = smoothstep(0.02, 0.2, s.a) * smoothstep(0.05, 0.3, s.r);
+    float bubbles = bubble * step(bid, s.a * 1.2) * smoothstep(0.02, 0.3, s.r);
+    col = mix(col, uSunColor * srgb(vec3(0.97, 0.97, 0.94)), clamp(lingering * 0.35 + bubbles * 0.7, 0.0, 0.85));
+
+    // ---- the swash: a thin sheet of water pushed up the sand ----
+    float front = waveFront(xz.x);
+    float depth = front - u;
+    if (depth > -0.25 && uWaveFront > 0.01) {
+      float sheet = smoothstep(0.0, 0.12, depth);
+      float t = uTime;
+      bool up = uWaveTau < 0.4;
+      // clear water over the sand, turquoise where it thickens
+      vec3 water = mix(srgb(vec3(0.66, 0.9, 0.88)), srgb(vec3(0.38, 0.76, 0.78)), smoothstep(0.1, 1.6, depth));
+      // sand seen through a film of clear water: a pale turquoise wash, glassier where it's deeper
+      vec3 film = mix(col * vec3(0.9, 0.98, 1.0), uSunColor * water, 0.22 + 0.3 * smoothstep(0.0, 1.6, depth));
+      col = mix(col, film, sheet * 0.8);
+      // a lacy foam edge, thicker as it runs up, a fine broken thread as it draws back
+      float laceN = vnoise(vec2(xz.x * 3.0, xz.y * 3.0) + vec2(t * 0.3, 0.0)) * 0.6 + vnoise(xz * 9.0 - t * 0.4) * 0.4;
+      float edgeW = up ? 0.22 : 0.09;
+      float rim = smoothstep(edgeW, 0.0, abs(depth - edgeW * 0.6)) * smoothstep(0.32, 0.55, laceN);
+      // foam streaks drawn along by the water inside the sheet
+      float streaks = smoothstep(0.62, 0.8, vnoise(vec2(xz.x * 2.6, depth * 6.0 - t * (up ? 1.5 : -0.8)))) * sheet * smoothstep(1.4, 0.1, depth);
+      float holes = smoothstep(0.35, 0.5, vnoise(xz * 14.0 + t * 0.2));
+      float foam = clamp(rim * holes + streaks * 0.55, 0.0, 1.0);
+      col = mix(col, uSunColor * srgb(vec3(0.97, 0.98, 0.96)), foam * 0.85);
+      // light catching the moving water: small round sparkles
+      float gid2;
+      float sparkle = speck(xz + vec2(0.0, t * (up ? -0.4 : 0.25)), 26.0, 0.012, 0.25, gid2);
+      col += uSunColor * sparkle * sheet * 0.5 * sunVis * step(0.5, fract(gid2 * 7.0 + t * 0.6));
+      col = mix(col, uSunColor * srgb(vec3(0.97, 0.98, 0.96)), rippleRings(xz) * 0.5 * sheet);
+    }
+  }
+
+  // where the paint thins at the edge, the paper shows through
+  col = mix(uPaper, col, 0.55 + 0.45 * smoothstep(0.0, 0.7, edge));
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function buildGeometry(step: number): THREE.BufferGeometry {
+  const cols = Math.round((TILE.halfX * 2) / step);
+  const rows = Math.round((TILE.halfZ * 2) / step);
+  const positions = new Float32Array((cols + 1) * (rows + 1) * 3);
+  const normals = new Float32Array(positions.length);
+  let k = 0;
+  for (let r = 0; r <= rows; r++) {
+    const z = -TILE.halfZ + r * step;
+    for (let c = 0; c <= cols; c++) {
+      const x = -TILE.halfX + c * step;
+      const [nx, ny, nz] = terrainNormal(x, z);
+      positions[k] = x;
+      positions[k + 1] = terrainHeight(x, z);
+      positions[k + 2] = z;
+      normals[k] = nx;
+      normals[k + 1] = ny;
+      normals[k + 2] = nz;
+      k += 3;
+    }
+  }
+  const index = new Uint32Array(cols * rows * 6);
+  let o = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const a = r * (cols + 1) + c;
+      const b = a + cols + 1;
+      index.set([a, b, a + 1, a + 1, b, b + 1], o);
+      o += 6;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  geo.setIndex(new THREE.BufferAttribute(index, 1));
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+export function createTerrain(world: WorldUniforms, quality: 'high' | 'low'): THREE.Mesh {
+  const material = new THREE.ShaderMaterial({ uniforms: world, vertexShader: vertex, fragmentShader: fragment });
+  const mesh = new THREE.Mesh(buildGeometry(quality === 'high' ? 0.045 : 0.07), material);
+  mesh.name = 'beach';
+  return mesh;
+}
