@@ -11,4 +11,6 @@
 
 Checks at the last commit: 20 unit tests, 13 E2E tests on dev and on the production build, typecheck, lint and build all pass.
 
-Open: deployment to Vercel (waiting for the owner's go-ahead); the limits listed at the end of `CASE_STUDY.md`.
+Deployed 2026-10-27 at https://tide-interactive.vercel.app (Vercel CLI; redeploy with `npx vercel --prod` after pushing).
+
+Open: the limits listed at the end of `CASE_STUDY.md`.

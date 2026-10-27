@@ -34,4 +34,4 @@ GPU-synced (a pixel readback after every frame, frames back to back), with four 
 - Line strength on the CPU wears down with the decay only, not the GPU's smearing, so it runs a little ahead of the real groove (e.g. 0.57 vs 0.41 after one wave). It only decides when crabs stop following and when undo is refused.
 - Undo restores the line's footprint to the snapshot taken before it: if a wave touched an *older* line inside that footprint in between, that older patch comes back un-eroded. Undo is refused for lines the sea has touched, which keeps this rare.
 - Up close, the swash's foam edge looks a little like cut paper; at the app's camera it reads as lace.
-- Not deployed yet.
+- Deployed with the Vercel CLI (`npx vercel --prod`); there is no Git integration, so a push does not redeploy.

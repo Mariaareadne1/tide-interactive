@@ -1,6 +1,6 @@
 # TIDE
 
-*draw in the sand*
+*draw in the sand* — **live at https://tide-interactive.vercel.app**
 
 You draw in the wet sand with your finger. The line stays, pressed into the sand. Little crabs come and walk along it. Then the waves come in and gently wash it away.
 
