@@ -15,7 +15,7 @@ interface Running {
 
 declare global {
   interface Window {
-    __tide?: Running & { store: Store };
+    __tide?: Running & { store: Store; record: typeof recordCanvas };
   }
 }
 
@@ -86,7 +86,7 @@ export function App() {
     document.addEventListener('visibilitychange', visibility);
 
     const r: Running = { engine, app, input };
-    window.__tide = { ...r, store };
+    window.__tide = { ...r, store, record: recordCanvas };
     setRunning(r);
     return () => {
       document.removeEventListener('visibilitychange', visibility);

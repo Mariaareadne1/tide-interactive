@@ -30,7 +30,7 @@ export const CRAB_COLOURS: CrabColours[] = [
 ];
 
 /** Crabs are drawn larger than life, so they read at the app's camera (MEADOW's rule). */
-export const CRAB_SCALE = 1.5;
+export const CRAB_SCALE = 1.75;
 const BODY_Y = 0.055;
 const SINK = 0.135;
 const FEMUR = 0.075;
