@@ -7,7 +7,7 @@ import { CRAB_COLOURS, CrabView } from './CrabView';
 import { CRAB_SCALE } from './anatomy';
 import { buildPath, longestRun, nearestOnPath } from './path';
 import { Puffs } from './Puffs';
-import { danceSlots, SONG_SECONDS } from './dance';
+import { BEAT, danceSlots, discoLevel, SONG_SECONDS } from './dance';
 import { isDrawable, surfaceAt } from '../scene/beach';
 import type { Segment } from '../sand/SandField';
 
@@ -143,6 +143,9 @@ export class Beach {
       c.view.apply(k.x, k.z, k.heading, k.phase, k.pose, t);
     }
     this.puffs.update(dt);
+    const beat = this.danceStart === null ? -1e3 : (t - this.danceStart) / BEAT;
+    this.engine.world.uDisco.value = discoLevel(beat);
+    this.engine.world.uBeat.value = beat;
   }
 
   /** A line was just finished: the nearest free crab comes to walk it; on a long line, another may come to watch. */

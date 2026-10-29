@@ -18,6 +18,7 @@ export const CRAB_KEYS = [
   'look', // eye yaw (rad)
   'burrow', // 0 standing .. 1 under the sand with only eyes showing
   'dig', // legs scrabbling at the sand 0..1
+  'shades', // sunglasses on 0..1 (only for the dance)
 ] as const;
 
 export type CrabKey = (typeof CRAB_KEYS)[number];

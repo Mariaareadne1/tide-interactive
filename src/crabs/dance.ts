@@ -1,18 +1,19 @@
 import { isWalkable, shoreZ } from '../scene/beach';
-import { emptyPose, smooth, clamp01, type Pose } from './pose';
+import { emptyPose, smooth, clamp01, ramp, type Pose } from './pose';
 
 /**
  * The beach's little dance: every crab lines up along the shore, facing
- * you, and they do the Can-Can together — a chorus line, ten seconds long. The choreography is a pure
+ * you, put on their sunglasses, and dance to disco Beethoven together — a
+ * chorus line, twelve seconds long. The choreography is a pure
  * function of the beat (and each crab's place in the row), so the crabs
  * stay in step with each other and with the song, which is scheduled from
  * the same numbers (see audio/song.ts).
  */
 
-/** Offenbach's galop, at a lively (but crab-sized) clip. */
-export const BPM = 144;
+/** Disco tempo. */
+export const BPM = 132;
 export const BEAT = 60 / BPM;
-/** A bar of claw-tapping under the drum roll to count in. */
+/** A bar of claw-tapping to count in, while the sunglasses go on. */
 export const INTRO_BEATS = 4;
 /** Five bars of dancing: side-step, claws up, the ripple, a spin, ta-da. */
 export const DANCE_BEATS = 20;
@@ -25,6 +26,11 @@ export const SONG_SECONDS = SONG_BEATS * BEAT;
 
 /** How far up the beach the row stands (m): above the reach of ordinary waves (≤ 2.3 m, ×1.16 at the wobble's peak). */
 export const ROW_U = 3.15;
+
+/** How far the disco lights are up at beat b of the song: on with the music, off with the last chord. */
+export function discoLevel(b: number): number {
+  return ramp(b, -0.5, 0.5) * (1 - ramp(b, SONG_BEATS - 1, SONG_BEATS + 0.5));
+}
 
 /** Places in the row for n crabs: along the shoreline, centred on the cove. */
 export function danceSlots(n: number): { x: number; z: number }[] {
@@ -71,6 +77,8 @@ export interface DanceFrame {
 export function danceFrame(b: number, slot: number, n: number): DanceFrame {
   const p = emptyPose();
   p.eyes = 1.15;
+  // sunglasses slide on during the count-in, and come off as the last chord fades
+  p.shades = ramp(b, 0.3, 1.8) * (1 - ramp(b, SONG_BEATS - 1.2, SONG_BEATS - 0.2));
   let along = 0, hop = 0, spin = 0;
   const beatAcc = onBeat(b);
   if (b < INTRO_BEATS) {
@@ -97,7 +105,7 @@ export function danceFrame(b: number, slot: number, n: number): DanceFrame {
       break;
     }
     case 1: {
-      // claws up and waving — the Can-Can, a bounce on every beat
+      // claws up and waving, a bounce on every beat
       p.clawL = 0.9 + 0.15 * Math.sin(d * Math.PI);
       p.clawR = 0.9 - 0.15 * Math.sin(d * Math.PI);
       p.pinchL = p.pinchR = 0.5 + 0.5 * Math.sin(d * Math.PI * 2);

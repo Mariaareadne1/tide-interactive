@@ -58,9 +58,42 @@ uniform float uWind;
 uniform float uWet;
 uniform float uGolden;
 uniform float uCalm;
+uniform float uDisco;
+uniform float uBeat;
 `;
 
 export const LIGHTING_GLSL = /* glsl */ `
+vec3 discoHue(float h) {
+  return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+}
+
+// The dance's disco: the house lights dim, coloured spotlights sweep the beach
+// and change colour on the beat, and mirror-ball sparkles wheel across it all.
+vec3 disco(vec3 col, vec3 wp) {
+  if (uDisco <= 0.001) return col;
+  float b = uBeat;
+  float hit = exp(-fract(max(b, 0.0)) * 4.0);
+  vec3 lit = col * vec3(0.42, 0.38, 0.62);
+  vec2 xz = wp.xz;
+  for (int i = 0; i < 5; i++) {
+    float fi = float(i);
+    vec2 c = vec2(sin(b * (0.21 + 0.04 * fi) + fi * 1.9) * 6.5, cos(b * (0.17 + 0.03 * fi) + fi * 2.7) * 3.2 - 0.3);
+    float d = length(xz - c);
+    float spot = smoothstep(1.7, 0.75, d);
+    vec3 hue = discoHue(fract(fi * 0.21 + floor(b) * 0.37));
+    lit += hue * spot * (0.5 + 0.35 * hit) * (0.3 + 1.1 * col) + hue * smoothstep(2.6, 1.2, d) * 0.04;
+  }
+  // mirror-ball flecks: a grid of points wheeling round the dance floor
+  float a = b * 0.18;
+  vec2 p = mat2(cos(a), sin(a), -sin(a), cos(a)) * (xz - vec2(0.0, -0.3)) * 1.6;
+  vec2 cell = floor(p);
+  float r = hash12(cell);
+  vec2 fp = fract(p) - 0.5 - (vec2(hash12(cell + 7.1), hash12(cell + 3.7)) - 0.5) * 0.6;
+  float fleck = smoothstep(0.1, 0.055, length(fp)) * step(0.6, r) * (0.55 + 0.45 * sin(b * 3.14159 + r * 20.0));
+  lit += vec3(1.0, 0.97, 0.92) * fleck * 0.8;
+  return mix(col, lit, uDisco);
+}
+
 const vec2 POISSON[12] = vec2[](
   vec2(-0.326, -0.406), vec2(-0.840, -0.074), vec2(-0.696, 0.457), vec2(-0.203, 0.621),
   vec2(0.962, -0.195), vec2(0.473, -0.480), vec2(0.519, 0.767), vec2(0.185, -0.893),

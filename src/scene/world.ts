@@ -42,6 +42,9 @@ export interface WorldUniforms {
   uRipples: THREE.IUniform<THREE.Vector4[]>;
   /** 0..1 calmer sea foam motion (reduced motion). */
   uCalm: THREE.IUniform<number>;
+  /** 0..1 disco lights (while the crabs dance), and the song's beat to move them on. */
+  uDisco: THREE.IUniform<number>;
+  uBeat: THREE.IUniform<number>;
 }
 
 export function createWorldUniforms(): WorldUniforms {
@@ -67,5 +70,7 @@ export function createWorldUniforms(): WorldUniforms {
     uSandTexel: { value: new THREE.Vector2(1 / 1024, 1 / 768) },
     uRipples: { value: Array.from({ length: MAX_RIPPLES }, () => new THREE.Vector4(0, 0, -100, 0)) },
     uCalm: { value: 0 },
+    uDisco: { value: 0 },
+    uBeat: { value: 0 },
   };
 }

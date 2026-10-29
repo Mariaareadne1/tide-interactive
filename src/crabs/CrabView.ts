@@ -30,6 +30,9 @@ export const CRAB_COLOURS: CrabColours[] = [
   { shell: '#dcb07e', rim: '#b48659', leg: '#e8c49a', tip: '#6e5236' },
 ];
 
+/** Disco frames, one per crab colour. */
+const SHADES_FRAMES = ['#ff5aa5', '#f7d24a', '#5ad1ff', '#f4f1ea'];
+
 const BODY_Y = 0.055;
 const SINK = 0.135;
 const FEMUR = 0.075;
@@ -114,6 +117,8 @@ export class CrabView {
   private readonly legs: Leg[] = [];
   private readonly claws: Claw[] = [];
   private readonly eyes: THREE.Group[] = [];
+  private readonly shades = new THREE.Group();
+  private readonly eyeTop = new THREE.Vector3();
   private readonly materials: THREE.ShaderMaterial[];
 
   constructor(world: WorldUniforms, colours: CrabColours, readonly seed: number, readonly size = 1) {
@@ -143,6 +148,31 @@ export class CrabView {
       this.body.add(stalk);
       this.eyes.push(stalk);
     }
+
+    // sunglasses, for the dance: two dark lenses on a bright frame, worn on the eye stalks
+    const lensMat = paintMaterial(world, { color: '#17161c', softness: 0.08, gloss: 1.6 });
+    const frameMat = paintMaterial(world, { color: SHADES_FRAMES[seed % SHADES_FRAMES.length], softness: 0.3, gloss: 0.8 });
+    this.materials.push(lensMat, frameMat);
+    for (const side of [-1, 1]) {
+      // big, slightly too big — that's the look
+      const rim = new THREE.TorusGeometry(0.032, 0.007, 6, 20);
+      rim.scale(1.2, 0.95, 1);
+      const r = caster(new THREE.Mesh(withAO(rim), frameMat));
+      r.position.x = side * 0.047;
+      const lens = new THREE.CylinderGeometry(0.032, 0.032, 0.006, 20);
+      lens.rotateX(Math.PI / 2);
+      lens.scale(1.2, 0.95, 1);
+      const l = caster(new THREE.Mesh(withAO(lens), lensMat));
+      l.position.x = side * 0.047;
+      this.shades.add(r, l);
+    }
+    const bridge = new THREE.CapsuleGeometry(0.006, 0.02, 3, 6);
+    bridge.rotateZ(Math.PI / 2);
+    const br = new THREE.Mesh(withAO(bridge), frameMat);
+    br.position.y = 0.01;
+    this.shades.add(br);
+    this.shades.visible = false;
+    this.body.add(this.shades);
 
     // claws: an arm forward and out, a plump palm, a fixed and a moving finger
     for (const side of [-1, 1] as const) {
@@ -211,6 +241,17 @@ export class CrabView {
       e.scale.y = 0.35 + 0.65 * Math.max(0, pose.eyes);
       e.rotation.set(-0.15, pose.look, (i ? -1 : 1) * 0.12);
     });
+
+    // the sunglasses sit just in front of the eyes, sliding down from above as they go on
+    const on = pose.shades;
+    this.shades.visible = on > 0.01;
+    if (this.shades.visible) {
+      const stalk = this.eyes[0];
+      stalk.updateMatrix();
+      this.eyeTop.set(0, 0.05, 0).applyMatrix4(stalk.matrix);
+      this.shades.position.set(0, this.eyeTop.y + (1 - on) * 0.07, this.eyeTop.z + 0.017);
+      this.shades.scale.setScalar(0.7 + 0.3 * on);
+    }
 
     this.claws.forEach((c) => {
       const raise = c.side < 0 ? pose.clawL : pose.clawR;

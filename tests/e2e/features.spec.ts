@@ -119,6 +119,10 @@ test('Dance: every crab lines up along the shore and dances to the song', async 
   for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeGreaterThan(0.6);
   const zs = row.map((c) => c.z);
   expect(Math.max(...zs) - Math.min(...zs)).toBeLessThan(0.8);
+  // sunglasses on, disco lights up
+  const disco = await page.evaluate(() => ({ lights: window.__tide!.engine.world.uDisco.value, shades: window.__tide!.app.beach.crabs.map((c) => c.controller.pose.shades) }));
+  expect(disco.lights).toBeGreaterThan(0.9);
+  expect(Math.min(...disco.shades)).toBeGreaterThan(0.9);
 });
 
 test('crabs leave footprints in the sand', async ({ page }) => {

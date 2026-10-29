@@ -66,7 +66,7 @@ void main() {
   vec3 tip = mix(srgb(vec3(0.84, 0.8, 0.58)), srgb(vec3(0.74, 0.76, 0.5)), vRand);
   vec3 albedo = mix(base, tip, smoothstep(0.2, 1.0, vTip));
   float sunVis = castLight(vWorld, 0.04);
-  gl_FragColor = vec4(paintLight(albedo, normalize(vec3(0.0, 1.0, 0.4)), sunVis, 1.0, 0.25), 1.0);
+  gl_FragColor = vec4(disco(paintLight(albedo, normalize(vec3(0.0, 1.0, 0.4)), sunVis, 1.0, 0.25), vWorld), 1.0);
 }
 `;
 

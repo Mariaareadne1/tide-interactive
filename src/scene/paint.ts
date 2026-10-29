@@ -90,6 +90,7 @@ void main() {
   float shade = 1.0 - smoothstep(-0.2, 0.5, dot(N, uSunDir));
   col = mix(col, col * uShadeTint, shade * 0.5);
   col += vec3(0.12, 0.3, 0.75) * uHighlight * pow(1.0 - max(dot(N, V), 0.0), 2.5) * 0.6;
+  col = disco(col, vWorld);
   gl_FragColor = vec4(col, 1.0);
 }
 `;

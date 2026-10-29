@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { footfalls, footWorld, LEGS } from '../../src/crabs/anatomy';
-import { BEAT, DANCE_BEATS, INTRO_BEATS, RIPPLE_BAR, ROW_U, SONG_BEATS, SONG_SECONDS, danceFrame, danceSlots } from '../../src/crabs/dance';
+import { BEAT, DANCE_BEATS, INTRO_BEATS, RIPPLE_BAR, discoLevel, ROW_U, SONG_BEATS, SONG_SECONDS, danceFrame, danceSlots } from '../../src/crabs/dance';
 import { isFinitePose } from '../../src/crabs/pose';
 import { CrabController, type CrabWorld } from '../../src/crabs/CrabController';
 import { melodyNotes } from '../../src/audio/song';
@@ -95,6 +95,17 @@ describe('the dance', () => {
     expect(danceFrame(INTRO_BEATS + DANCE_BEATS - 0.5, 0, 4).pose.clawL).toBeGreaterThan(1);
   });
 
+  test('sunglasses go on in the count-in and off at the end; the disco lights follow the music', () => {
+    expect(danceFrame(0, 0, 4).pose.shades).toBe(0);
+    expect(danceFrame(INTRO_BEATS, 0, 4).pose.shades).toBe(1);
+    expect(danceFrame(INTRO_BEATS + DANCE_BEATS - 0.5, 2, 4).pose.shades).toBe(1);
+    expect(danceFrame(SONG_BEATS - 0.1, 0, 4).pose.shades).toBeLessThan(0.05);
+    expect(discoLevel(-1)).toBe(0);
+    expect(discoLevel(1)).toBe(1);
+    expect(discoLevel(SONG_BEATS - 2)).toBe(1);
+    expect(discoLevel(SONG_BEATS + 1)).toBe(0);
+  });
+
   test('the ripple travels down the line', () => {
     const peak = (slot: number) => {
       let best = 0, at = 0;
@@ -119,7 +130,7 @@ describe('the dance', () => {
     }
     const last = notes[notes.length - 1];
     expect(last[0]).toBe(INTRO_BEATS + DANCE_BEATS - 2);
-    expect(BEAT).toBeCloseTo(60 / 144, 9);
+    expect(BEAT).toBeCloseTo(60 / 132, 9);
     // short enough for a demo
     expect(SONG_SECONDS).toBeLessThan(12);
   });

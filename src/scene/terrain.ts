@@ -290,6 +290,7 @@ void main() {
     }
   }
 
+  col = disco(col, vWorld);
   // where the paint thins at the edge, the paper shows through
   col = mix(uPaper, col, 0.55 + 0.45 * smoothstep(0.0, 0.7, edge));
   gl_FragColor = vec4(col, 1.0);
