@@ -5,7 +5,7 @@ test('Add a crab: a + cursor, a tap places a crab, and nothing is drawn', async 
   await openBeach(page);
   await calmSea(page);
   await page.getByRole('button', { name: /Add a crab/ }).click();
-  await expect(page.getByText('Tap the sand to place a crab')).toBeVisible();
+  await expect(page.getByText('or tap the sand')).toBeVisible();
   const [x, y] = await toScreen(page, 0.5, -2);
   await page.mouse.move(x, y);
   await expect(page.locator('.stage')).toHaveAttribute('data-cursor', 'place');
@@ -34,6 +34,45 @@ test('Add a crab: a + cursor, a tap places a crab, and nothing is drawn', async 
   await expect(page.locator('.stage')).toHaveAttribute('data-cursor', 'draw');
   await page.waitForTimeout(1600);
   expect(await page.evaluate(() => window.__tide!.app.beach.crabs[4].controller.pose.burrow)).toBeLessThan(0.2);
+});
+
+test('Add a crab: drawing a shell shows a white line, leaves the sand alone, and hatches a crab sized to it', async ({ page }) => {
+  await openBeach(page);
+  await calmSea(page);
+  await page.keyboard.press('c');
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 48; i++) {
+    const a = (i / 48) * Math.PI * 2;
+    pts.push(await toScreen(page, 0.5 + Math.cos(a) * 0.45, -2 + Math.sin(a) * 0.36));
+  }
+  await page.mouse.move(...pts[0]);
+  await page.mouse.down();
+  for (const [x, y] of pts.slice(1, 30)) await page.mouse.move(x, y, { steps: 2 });
+  // mid-stroke: the white line is there, and nothing is pressed into the sand
+  await expect(page.locator('.ink-line').last()).toHaveAttribute('d', /Q/);
+  expect(await page.evaluate(() => window.__tide!.app.lines.length)).toBe(0);
+  for (const [x, y] of pts.slice(30)) await page.mouse.move(x, y, { steps: 2 });
+  await page.mouse.up();
+  const s = await page.evaluate(() => {
+    const t = window.__tide!, c = t.app.beach.crabs[4];
+    return { n: t.app.beach.crabs.length, x: c.controller.x, z: c.controller.z, size: c.view.size, lines: t.app.lines.length, adding: t.store.get().addingCrab };
+  });
+  expect(s.n).toBe(5);
+  expect(Math.hypot(s.x - 0.5, s.z + 2)).toBeLessThan(0.15);
+  expect(s.size).toBeGreaterThan(0.9);
+  expect(s.lines).toBe(0);
+  expect(s.adding).toBe(true);
+  // the shell's line is only ink: no groove where it was drawn
+  expect(Math.max(...(await depthAt(page, [[0.95, -2], [0.05, -2], [0.5, -1.64]])))).toBeLessThan(0.05);
+  // an open line hatches nothing and says why
+  const open: [number, number][] = [];
+  for (let i = 0; i <= 20; i++) open.push(await toScreen(page, -2.5 + i * 0.1, -1.5));
+  await page.mouse.move(...open[0]);
+  await page.mouse.down();
+  for (const [x, y] of open.slice(1)) await page.mouse.move(x, y, { steps: 2 });
+  await page.mouse.up();
+  await expect(page.getByRole('status')).toContainText('Close the loop');
+  expect(await page.evaluate(() => ({ n: window.__tide!.app.beach.crabs.length, lines: window.__tide!.app.lines.length }))).toEqual({ n: 5, lines: 0 });
 });
 
 test('undo keeps the paper behind the beach (it used to turn black)', async ({ page }) => {

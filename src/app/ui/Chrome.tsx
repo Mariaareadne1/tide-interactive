@@ -14,7 +14,7 @@ const SHORTCUTS: [string, string][] = [
   ['Select a crab', 'Tab'],
   ['Follow · Wave · Burrow', 'F · W · B'],
   ['Everyone dance', 'D'],
-  ['Add a crab (then tap the sand)', 'C'],
+  ['Add a crab (draw a loop, or tap)', 'C'],
   ['Sound on / off', 'M'],
   ['Deselect / cancel', 'Esc'],
   ['Hide interface', 'H'],
@@ -41,7 +41,7 @@ export function Chrome({ app, onCapture, onRecord }: ChromeProps) {
     return () => window.removeEventListener('pointerdown', close);
   }, [panel]);
 
-  const hint = addingCrab ? 'Tap the sand to place a crab. Esc when you’re done.' : hasDrawn || selection !== null ? null : 'Draw in the wet sand.';
+  const hint = addingCrab ? 'Draw a shell — a loop — or tap the sand, and a crab digs out. Esc when you’re done.' : hasDrawn || selection !== null ? null : 'Draw in the wet sand.';
 
   const runMenu = (action: 'record' | 'hide') => {
     setPanel('none');
@@ -68,7 +68,7 @@ export function Chrome({ app, onCapture, onRecord }: ChromeProps) {
       {panel === 'help' && (
         <section className="panel help" aria-label="How it works">
           <p className="lede">Draw in the sand with your finger — a word, a heart, a spiral. The crabs come and walk along it. Then the waves come in and gently wash it away.</p>
-          <p className="aside">Tap <b>Add a crab</b>, then tap the sand, and a crab digs its way up out of it. Select any crab and press <b>Dance</b>: they all line up along the shore and dance to a song.</p>
+          <p className="aside">Tap <b>Add a crab</b>, then draw a shell — a loop — or just tap the sand, and a crab digs its way up out of it. Select any crab and press <b>Dance</b>: they all line up along the shore and dance to a song.</p>
           <p className="aside">Nothing is kept. Lines low on the beach soften over two or three waves; high up, they last until a big one comes. Reload, and the sand is smooth again.</p>
           <dl>
             {SHORTCUTS.map(([what, key]) => (
@@ -89,7 +89,7 @@ export function Chrome({ app, onCapture, onRecord }: ChromeProps) {
       <nav className="toolbar" aria-label="Tools">
         <button className="icon-btn" aria-label="Undo" title="Undo the last line (⌘Z)" disabled={undoable === 0} onClick={() => app.undo()}><Icon name="undo" /></button>
         <span className="sep" />
-        <button className={addingCrab ? 'tool on' : 'tool'} aria-pressed={addingCrab} title="Add a crab: tap the sand (C)" disabled={crabCount >= 10 && !addingCrab} onClick={() => app.toggleAddCrab()}>
+        <button className={addingCrab ? 'tool on' : 'tool'} aria-pressed={addingCrab} title="Add a crab: draw a loop or tap the sand (C)" disabled={crabCount >= 10 && !addingCrab} onClick={() => app.toggleAddCrab()}>
           <Icon name="crab" /><span>Add a crab</span>
         </button>
         <span className="sep" />

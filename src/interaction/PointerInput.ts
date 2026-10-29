@@ -9,7 +9,8 @@ import type { Pt } from './stroke';
  *   press on the sand → the fingertip goes in; the groove forms under it
  *   press on the sea  → soft rings on the water
  *   press off the tile → a faint line that shivers away (MEADOW's shiver)
- *   "Add a crab" on    → a tap on the sand places a crab; nothing is drawn
+ *   "Add a crab" on    → a white line shows the shell being drawn (the sand
+ *                        is untouched); a closed loop or a plain tap hatches a crab
  * A second finger, pointercancel or Escape smooths an unfinished line away.
  */
 
@@ -19,9 +20,30 @@ type Gesture =
   | { kind: 'drag'; pointerId: number }
   | { kind: 'line'; pointerId: number }
   | { kind: 'sea'; pointerId: number; last: Pt; travelled: number }
-  | { kind: 'off'; pointerId: number; points: Pt[] };
+  | { kind: 'off'; pointerId: number; points: Pt[] }
+  | { kind: 'crab'; pointerId: number; points: Pt[] };
 
 const DRAG_THRESHOLD = 4;
+/** In "Add a crab", a stroke shorter than this (px) is a tap. */
+const TAP_TRAVEL = 10;
+
+/** Roughly closed, on screen: for the faint fill while a shell is drawn. */
+function closedish(pts: readonly Pt[]): boolean {
+  if (pts.length < 8) return false;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, len = 0;
+  pts.forEach((p, i) => {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    if (i) len += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y);
+  });
+  const extent = Math.max(maxX - minX, maxY - minY);
+  const a = pts[0], b = pts[pts.length - 1];
+  return extent > 20 && Math.hypot(b.x - a.x, b.y - a.y) < Math.max(14, 0.3 * extent) && len > 2.3 * extent;
+}
+
+function travel(pts: readonly Pt[]): number {
+  return pts.reduce((m, p) => Math.max(m, Math.hypot(p.x - pts[0].x, p.y - pts[0].y)), 0);
+}
 
 export class PointerInput {
   private gesture: Gesture = { kind: 'none' };
@@ -48,8 +70,9 @@ export class PointerInput {
     });
   }
 
+  /** A line in the sand, or a crab's shell, is being drawn (Esc abandons it). */
   get isDrawing(): boolean {
-    return this.gesture.kind === 'line';
+    return this.gesture.kind === 'line' || this.gesture.kind === 'crab';
   }
 
   /** Only the canvas itself is touchable; the interface floats above it. */
@@ -72,7 +95,8 @@ export class PointerInput {
       // the pointer is already gone (or synthetic); events still arrive on the element
     }
     if (this.app.store.get().addingCrab) {
-      if (!this.app.placeCrab(e.clientX, e.clientY)) this.setCursor('not-allowed');
+      this.overlay.begin();
+      this.gesture = { kind: 'crab', pointerId: e.pointerId, points: [{ x: e.clientX, y: e.clientY }] };
       return;
     }
     const sel = this.app.pickAt(e.clientX, e.clientY);
@@ -139,6 +163,10 @@ export class PointerInput {
         g.points.push(...samples);
         this.overlay.update(g.points, false);
         return;
+      case 'crab':
+        g.points.push(...samples);
+        this.overlay.update(g.points, closedish(g.points));
+        return;
     }
   };
 
@@ -150,6 +178,12 @@ export class PointerInput {
     if (g.kind === 'drag') this.app.endDrag();
     else if (g.kind === 'line') this.app.endLine();
     else if (g.kind === 'off') this.overlay.settle(false);
+    else if (g.kind === 'crab') {
+      const tap = travel(g.points) < TAP_TRAVEL;
+      const ok = tap ? this.app.placeCrab(g.points[0].x, g.points[0].y) : this.app.crabFromStroke(g.points);
+      if (tap) this.overlay.cancelLive();
+      else this.overlay.settle(ok);
+    }
     this.updateHover(e.clientX, e.clientY);
   };
 
@@ -170,7 +204,7 @@ export class PointerInput {
     this.gesture = { kind: 'none' };
     if (g.kind === 'line') this.app.abortLine();
     if (g.kind === 'drag') this.app.endDrag();
-    if (g.kind === 'off') this.overlay.cancelLive();
+    if (g.kind === 'off' || g.kind === 'crab') this.overlay.cancelLive();
   }
 
   private noMenu = (e: Event) => e.preventDefault();
