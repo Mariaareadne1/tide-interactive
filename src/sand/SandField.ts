@@ -224,9 +224,14 @@ export class SandField {
     this.flush(renderer);
     this.finishRestore();
     // paint the footprint mask, a little wider than the line and its lip
+    const prev = new THREE.Color();
+    renderer.getClearColor(prev);
+    const alpha = renderer.getClearAlpha();
     renderer.setRenderTarget(this.mask);
     renderer.setClearColor(0x000000, 0);
     renderer.clear(true, false, false);
+    // the screen clears to the paper colour: put it back
+    renderer.setClearColor(prev, alpha);
     this.drawSegments(renderer, segments, this.mask, 2.6);
     const [snap] = this.snapshots.splice(i, 1);
     this.restore = { snap: snap.target, time: 0 };

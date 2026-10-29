@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { footfalls, footWorld, LEGS } from '../../src/crabs/anatomy';
-import { BEAT, DANCE_BEATS, INTRO_BEATS, ROW_U, SONG_BEATS, danceFrame, danceSlots } from '../../src/crabs/dance';
+import { BEAT, DANCE_BEATS, INTRO_BEATS, RIPPLE_BAR, ROW_U, SONG_BEATS, SONG_SECONDS, danceFrame, danceSlots } from '../../src/crabs/dance';
 import { isFinitePose } from '../../src/crabs/pose';
 import { CrabController, type CrabWorld } from '../../src/crabs/CrabController';
 import { melodyNotes } from '../../src/audio/song';
@@ -86,7 +86,7 @@ describe('the dance', () => {
       }
       // apart from the ripple bar, everyone is in step
       const bar = Math.floor((b - INTRO_BEATS) / 4);
-      if (bar !== 3) expect(danceFrame(b, 0, 6).pose.clawL).toBeCloseTo(danceFrame(b, 5, 6).pose.clawL, 9);
+      if (bar !== RIPPLE_BAR) expect(danceFrame(b, 0, 6).pose.clawL).toBeCloseTo(danceFrame(b, 5, 6).pose.clawL, 9);
     }
     // the side-step goes one way, then the other
     expect(danceFrame(INTRO_BEATS + 1, 0, 4).along).toBeGreaterThan(0.1);
@@ -98,7 +98,7 @@ describe('the dance', () => {
   test('the ripple travels down the line', () => {
     const peak = (slot: number) => {
       let best = 0, at = 0;
-      for (let b = INTRO_BEATS + 12; b < INTRO_BEATS + 16; b += 0.01) {
+      for (let b = INTRO_BEATS + RIPPLE_BAR * 4; b < INTRO_BEATS + RIPPLE_BAR * 4 + 4; b += 0.01) {
         const h = danceFrame(b, slot, 5).hop;
         if (h > best) { best = h; at = b; }
       }
@@ -119,7 +119,9 @@ describe('the dance', () => {
     }
     const last = notes[notes.length - 1];
     expect(last[0]).toBe(INTRO_BEATS + DANCE_BEATS - 2);
-    expect(BEAT).toBeCloseTo(60 / 112, 9);
+    expect(BEAT).toBeCloseTo(60 / 144, 9);
+    // short enough for a demo
+    expect(SONG_SECONDS).toBeLessThan(12);
   });
 
   test('crabs gather into the row and dance in place; a wave mid-dance sends them under and back', () => {
@@ -144,7 +146,8 @@ describe('the dance', () => {
         }
       }
     }
-    expect(danced).toBeGreaterThan(4 * 60 * 10);
+    // most of the song, even with a wave sending them under for a while
+    expect(danced).toBeGreaterThan(4 * 60 * SONG_SECONDS * 0.55);
     expect(offRow).toBe(0);
     // the big wave reached the row only if it ran that high; either way, they finish
     if (waves.nextBigAfter(0).reach * 1.1 > ROW_U) expect(hid).toBeGreaterThan(0);

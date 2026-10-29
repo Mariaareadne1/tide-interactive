@@ -1,37 +1,41 @@
 import { BEAT, INTRO_BEATS } from '../crabs/dance';
 
 /**
- * The crabs' song: a little calypso, made here from oscillators and noise —
- * steel pan melody, a marimba bass, off-beat chord stabs, a shaker and a soft
- * drum. Every note is placed by beat number, from the same BPM the dance
- * uses, so the claws land on the music.
+ * The crabs' song: the Can-Can — Offenbach's "Galop infernal" (1858, public
+ * domain) — made here from oscillators and noise: a brassy lead, a bright
+ * glockenspiel doubling, oom-pah bass and chords, a snare roll to count in,
+ * and a crash on the ta-da. Every note is placed by beat number, from the
+ * same BPM the dance uses, so the claws land on the music.
  */
 
 type Note = [beat: number, midi: number, beats: number];
 
 const midiHz = (m: number) => 440 * 2 ** ((m - 69) / 12);
 
-// C | F | G | C | Am | F | G | C — one bar each, after a bar of counting in
-const CHORDS: number[][] = [
-  [60, 64, 67], [65, 69, 72], [67, 71, 74], [60, 64, 67],
-  [69, 72, 76], [65, 69, 72], [67, 71, 74], [60, 64, 67],
-];
-const ROOTS = [48, 53, 55, 48, 57, 53, 55, 48];
+const C = 72, D = 74, E = 76, F = 77, G = 79, A = 81, B = 83, C6 = 84;
 
+/** The tune, one dance bar (two bars of 2/4) per row, in beats from that bar. */
 const MELODY: Note[][] = [
-  [[0, 76, 0.5], [0.5, 79, 0.5], [1, 84, 1], [2, 79, 0.5], [2.5, 76, 0.5], [3, 79, 1]],
-  [[0, 81, 0.5], [0.5, 84, 0.5], [1, 81, 0.5], [1.5, 77, 0.5], [2, 81, 1], [3, 79, 1]],
-  [[0, 71, 0.5], [0.5, 74, 0.5], [1, 79, 1], [2, 77, 0.5], [2.5, 76, 0.5], [3, 74, 1]],
-  [[0, 76, 0.5], [0.5, 72, 0.5], [1, 76, 0.5], [1.5, 79, 0.5], [2, 84, 2]],
-  [[0, 81, 0.5], [0.5, 84, 0.5], [1, 88, 1], [2, 86, 0.5], [2.5, 84, 0.5], [3, 81, 1]],
-  [[0, 77, 0.5], [0.5, 81, 0.5], [1, 84, 0.5], [1.5, 81, 0.5], [2, 77, 0.5], [2.5, 79, 0.5], [3, 81, 1]],
-  [[0, 79, 1], [1, 83, 0.5], [1.5, 86, 0.5], [2, 83, 0.5], [2.5, 79, 0.5], [3, 77, 1]],
-  [[0, 76, 0.5], [0.5, 79, 0.5], [1, 76, 0.5], [1.5, 79, 0.5], [2, 84, 4]],
+  [[0, C, 2], [2, D, 0.5], [2.5, F, 0.5], [3, E, 0.5], [3.5, D, 0.5]],
+  [[0, G, 1], [1, G, 1], [2, G, 0.5], [2.5, A, 0.5], [3, E, 0.5], [3.5, F, 0.5]],
+  [[0, D, 1], [1, D, 1], [2, D, 0.5], [2.5, F, 0.5], [3, E, 0.5], [3.5, D, 0.5]],
+  [[0, C, 0.5], [0.5, C6, 0.5], [1, B, 0.5], [1.5, A, 0.5], [2, G, 0.5], [2.5, F, 0.5], [3, E, 0.5], [3.5, D, 0.5]],
+  [[0, E, 0.5], [0.5, D, 0.5], [1, C, 1], [2, C6, 2]],
 ];
 
-/** Every note of the song: [beat from the start, midi, length in beats]. Exported for tests. */
+// oom-pah under each half bar: [bass root, chord]
+const C_MAJ = [60, 64, 67], G7 = [59, 65, 67];
+const HARMONY: [number, number[]][][] = [
+  [[48, C_MAJ], [48, C_MAJ]],
+  [[48, C_MAJ], [48, C_MAJ]],
+  [[43, G7], [43, G7]],
+  [[48, C_MAJ], [43, G7]],
+  [[48, C_MAJ], [36, C_MAJ]],
+];
+
+/** Every note of the tune: [beat from the start, midi, length in beats]. Exported for tests. */
 export function melodyNotes(): Note[] {
-  const out: Note[] = [[2, 67, 0.5], [2.5, 69, 0.5], [3, 71, 1]]; // a pickup into the first bar
+  const out: Note[] = [];
   MELODY.forEach((bar, i) => bar.forEach(([b, m, d]) => out.push([INTRO_BEATS + i * 4 + b, m, d])));
   return out;
 }
@@ -50,7 +54,7 @@ function noiseBuffer(ctx: BaseAudioContext): AudioBuffer {
 /** Schedule the whole song to start at `when` (audio-clock seconds). Returns a function that stops it. */
 export function playSong(ctx: AudioContext, out: AudioNode, when: number): () => void {
   const bus = ctx.createGain();
-  bus.gain.value = 0.8;
+  bus.gain.value = 0.7;
   bus.connect(out);
   const sources: AudioScheduledSourceNode[] = [];
   const at = (beat: number) => when + beat * BEAT;
@@ -71,72 +75,108 @@ export function playSong(ctx: AudioContext, out: AudioNode, when: number): () =>
     sources.push(o);
   };
 
-  // steel pan: a bright fundamental with its octave and a slightly sour twelfth, a little pitch drop on the strike
-  const pan = (midi: number, beat: number, beats: number, vel = 1) => {
-    const f = midiHz(midi), t = at(beat), dur = Math.min(1.4, 0.35 + beats * BEAT * 0.9);
-    tone('sine', f, t, dur, 0.16 * vel, 0.012);
-    tone('sine', f * 2, t, dur * 0.7, 0.07 * vel);
-    tone('sine', f * 3.02, t, dur * 0.35, 0.025 * vel);
+  // a brassy lead: two detuned saws through a lowpass that opens on the attack
+  const lead = (midi: number, beat: number, beats: number, vel = 1) => {
+    const f = midiHz(midi), t = at(beat), dur = Math.max(0.12, beats * BEAT * 0.92);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 1.5;
+    lp.frequency.setValueAtTime(f * 1.5, t);
+    lp.frequency.linearRampToValueAtTime(f * 6, t + 0.03);
+    lp.frequency.exponentialRampToValueAtTime(f * 2.5, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.075 * vel, t + 0.012);
+    g.gain.setValueAtTime(0.06 * vel, t + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.06);
+    lp.connect(g).connect(bus);
+    for (const detune of [-7, 7]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      o.detune.value = detune;
+      o.connect(lp);
+      o.start(t);
+      o.stop(t + dur + 0.1);
+      sources.push(o);
+    }
   };
-  // marimba bass
-  const bass = (midi: number, beat: number) => {
+  // glockenspiel an octave up, for sparkle
+  const glock = (midi: number, beat: number, vel = 1) => {
+    const f = midiHz(midi + 12), t = at(beat);
+    tone('sine', f, t, 0.5, 0.05 * vel);
+    tone('sine', f * 2.76, t, 0.12, 0.012 * vel);
+  };
+  const bass = (midi: number, beat: number, len = 0.35) => {
     const f = midiHz(midi), t = at(beat);
-    tone('sine', f, t, 0.45, 0.22);
-    tone('sine', f * 4, t, 0.08, 0.05);
+    tone('triangle', f, t, len, 0.2);
+    tone('sine', f * 2, t, 0.08, 0.06);
   };
-  const stab = (chord: number[], beat: number) => chord.forEach((m) => tone('triangle', midiHz(m), at(beat), 0.14, 0.035));
-  const shaker = (beat: number, vel: number) => {
+  const stab = (chord: number[], beat: number, gain = 0.04) => chord.forEach((m) => tone('triangle', midiHz(m), at(beat), 0.12, gain));
+  const hiss = (beat: number, vel: number, cutoff: number, len: number) => {
     const src = ctx.createBufferSource();
     src.buffer = noise;
     const hp = ctx.createBiquadFilter();
     hp.type = 'highpass';
-    hp.frequency.value = 6500;
+    hp.frequency.value = cutoff;
     const g = ctx.createGain();
     const t = at(beat);
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.09 * vel, t + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    g.gain.linearRampToValueAtTime(vel, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
     src.connect(hp).connect(g).connect(bus);
-    src.start(t, (beat * 0.37) % 0.8, 0.1);
+    src.start(t, (beat * 0.37) % 0.8, len + 0.05);
     sources.push(src);
   };
-  const drum = (beat: number) => {
+  const snare = (beat: number, vel: number) => hiss(beat, 0.11 * vel, 1800, 0.09);
+  const crash = (beat: number) => hiss(beat, 0.16, 4500, 1.6);
+  const drum = (beat: number, vel = 1) => {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     const t = at(beat);
-    o.frequency.setValueAtTime(110, t);
-    o.frequency.exponentialRampToValueAtTime(48, t + 0.18);
-    g.gain.setValueAtTime(0.28, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    o.frequency.setValueAtTime(120, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.16);
+    g.gain.setValueAtTime(0.3 * vel, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     o.connect(g).connect(bus);
     o.start(t);
     o.stop(t + 0.3);
     sources.push(o);
   };
 
-  // a bar of counting in: shaker and drum
-  for (let e = 0; e < INTRO_BEATS * 2; e++) shaker(e / 2, e % 2 ? 1 : 0.5);
-  drum(0);
-  drum(2);
-  for (const [b, m, d] of melodyNotes()) pan(m, b, d);
-  CHORDS.forEach((chord, i) => {
+  // counting in: a snare roll that swells, and two big hits — "and… GO"
+  for (let k = 0; k < 24; k++) snare(k / 8, 0.25 + 0.75 * (k / 24));
+  drum(3);
+  stab(G7, 3, 0.05);
+  drum(3.5);
+  stab(G7, 3.5, 0.05);
+
+  for (const [b, m, d] of melodyNotes()) {
+    lead(m, b, d);
+    glock(m, b, d >= 2 ? 1.2 : 0.8);
+  }
+  HARMONY.forEach((halves, i) => {
     const b0 = INTRO_BEATS + i * 4;
-    const last = i === CHORDS.length - 1;
-    // calypso bass: root, fifth on the and of two, root, fifth
-    bass(ROOTS[i], b0);
-    if (!last) {
-      bass(ROOTS[i] + 7, b0 + 1.5);
-      bass(ROOTS[i], b0 + 2);
-      bass(ROOTS[i] + 7, b0 + 3);
-      for (const off of [0.5, 1.5, 2.5, 3.5]) stab(chord, b0 + off);
-    } else {
-      // the finish: a ringing chord as they throw their claws up
-      bass(ROOTS[i] - 12, b0 + 2);
-      chord.forEach((m) => pan(m + 12, b0 + 2, 3, 0.7));
-    }
-    for (let e = 0; e < 8; e++) if (!last || e < 5) shaker(b0 + e / 2, e % 2 ? 1 : 0.55);
-    drum(b0);
-    drum(b0 + 2);
+    const last = i === HARMONY.length - 1;
+    halves.forEach(([root, chord], h) => {
+      const hb = b0 + h * 2;
+      if (last && h === 1) {
+        // the ta-da: a big ringing chord, a low C and a crash
+        bass(root, hb, 1.2);
+        chord.forEach((m) => lead(m + 12, hb, 2.2, 0.35));
+        crash(hb);
+        drum(hb, 1);
+        return;
+      }
+      // oom-pah: bass on the beat, chord on the off-beat
+      bass(root, hb);
+      stab(chord, hb + 0.5);
+      bass(root + 7, hb + 1);
+      stab(chord, hb + 1.5);
+      drum(hb, 0.8);
+      snare(hb + 1, 0.8);
+      for (let e = 0; e < 4; e++) hiss(hb + e / 2, 0.035, 7000, 0.04);
+    });
   });
 
   return () => {

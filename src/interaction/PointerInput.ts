@@ -9,6 +9,7 @@ import type { Pt } from './stroke';
  *   press on the sand → the fingertip goes in; the groove forms under it
  *   press on the sea  → soft rings on the water
  *   press off the tile → a faint line that shivers away (MEADOW's shiver)
+ *   "Add a crab" on    → a tap on the sand places a crab; nothing is drawn
  * A second finger, pointercancel or Escape smooths an unfinished line away.
  */
 
@@ -28,6 +29,7 @@ export class PointerInput {
   private readonly activePointers = new Set<number>();
   private hoverRaf = 0;
   private lastHover: Pt | null = null;
+  private readonly unsubscribe: () => void;
 
   constructor(private readonly el: HTMLElement, private readonly app: TideApp) {
     this.overlay = new DrawingOverlay(el);
@@ -37,6 +39,13 @@ export class PointerInput {
     el.addEventListener('pointercancel', this.cancel);
     el.addEventListener('lostpointercapture', this.lost);
     el.addEventListener('contextmenu', this.noMenu);
+    // switching "Add a crab" on or off changes the cursor straight away
+    let adding = app.store.get().addingCrab;
+    this.unsubscribe = app.store.subscribe(() => {
+      if (app.store.get().addingCrab === adding) return;
+      adding = app.store.get().addingCrab;
+      if (this.lastHover && this.gesture.kind === 'none') this.updateHover(this.lastHover.x, this.lastHover.y);
+    });
   }
 
   get isDrawing(): boolean {
@@ -61,6 +70,10 @@ export class PointerInput {
       this.el.setPointerCapture(e.pointerId);
     } catch {
       // the pointer is already gone (or synthetic); events still arrive on the element
+    }
+    if (this.app.store.get().addingCrab) {
+      if (!this.app.placeCrab(e.clientX, e.clientY)) this.setCursor('not-allowed');
+      return;
     }
     const sel = this.app.pickAt(e.clientX, e.clientY);
     if (sel) {
@@ -168,18 +181,24 @@ export class PointerInput {
   };
 
   private updateHover(x: number, y: number): void {
+    if (this.app.store.get().addingCrab) {
+      this.app.hoverSel = null;
+      this.setCursor(this.app.crabSpotAt(x, y) ? 'place' : 'not-allowed');
+      return;
+    }
     const sel = this.app.pickAt(x, y);
     this.app.hoverSel = sel;
     if (sel) this.setCursor('grab');
     else this.setCursor(this.app.targetAt(x, y) === 'sand' ? 'draw' : 'default');
   }
 
-  private setCursor(c: 'grab' | 'grabbing' | 'draw' | 'default' | 'not-allowed'): void {
+  private setCursor(c: 'grab' | 'grabbing' | 'draw' | 'place' | 'default' | 'not-allowed'): void {
     this.el.dataset.cursor = c;
   }
 
   dispose(): void {
     cancelAnimationFrame(this.hoverRaf);
+    this.unsubscribe();
     this.el.removeEventListener('pointerdown', this.down);
     this.el.removeEventListener('pointermove', this.move);
     this.el.removeEventListener('pointerup', this.up);

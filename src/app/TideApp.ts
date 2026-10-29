@@ -2,14 +2,13 @@ import * as THREE from 'three';
 import type { Engine } from '../engine/Engine';
 import type { Store, Selection } from '../state/store';
 import { Cove } from '../scene/Cove';
-import { baseWetness, isDrawable, surfaceAt, terrainHeight } from '../scene/beach';
+import { baseWetness, isDrawable, isWalkable, surfaceAt, terrainHeight } from '../scene/beach';
 import { screenToTerrain } from '../interaction/terrainRay';
-import { erodeLines, groupFor, isAlive, lineLength, loopShape, resample, type SandLine } from '../sand/lines';
+import { erodeLines, groupFor, isAlive, lineLength, resample, type SandLine } from '../sand/lines';
 import type { Segment } from '../sand/SandField';
 import { Beach, MAX_CRABS } from '../crabs/Beach';
 import { Sound } from '../audio/Sound';
 import { SONG_SECONDS } from '../crabs/dance';
-import { CRAB_SCALE } from '../crabs/anatomy';
 
 /**
  * Application commands. Pointer input and the interface call these; they
@@ -158,7 +157,6 @@ export class TideApp {
       this.cove.sand.dropSnapshot(pen.line.id);
       return null;
     }
-    if (this.store.get().addingCrab && this.hatchFrom(pen.line)) return pen.line;
     pen.line.group = groupFor(pen.line, this.lines);
     this.store.set({ hasDrawn: true });
     this.refreshUndo();
@@ -170,26 +168,30 @@ export class TideApp {
     return this.pen !== null;
   }
 
+  /** Where a crab could be placed under the pointer, or null (sea, rocks, dunes, off the tile). */
+  crabSpotAt(clientX: number, clientY: number): { x: number; z: number } | null {
+    const hit = screenToTerrain(this.engine.camera, this.rect, clientX, clientY);
+    return hit && isWalkable(hit.x, hit.z) ? { x: hit.x, z: hit.z } : null;
+  }
+
   /**
-   * "Add a crab": a closed shape drawn in the sand is a shell. The groove
-   * smooths away as a crab, sized to the drawing, digs its way out of it.
+   * "Add a crab": tap the sand and a crab digs its way up out of it. The
+   * mode stays on so you can tap in a few; Esc or the button turns it off.
    */
-  private hatchFrom(line: SandLine): boolean {
-    const shape = loopShape(line.points);
-    if (!shape.closed) {
-      this.store.toast('Close the loop to draw a shell — that one stays a line.');
-      return false;
-    }
-    // the base crab's shell is ~0.3 m across the middle at the app's scale
-    const size = Math.min(1.5, Math.max(0.7, shape.radius / (0.17 * CRAB_SCALE)));
-    const crab = this.beach.hatch(shape.cx, shape.cz, size);
+  placeCrab(clientX: number, clientY: number): boolean {
+    const spot = this.crabSpotAt(clientX, clientY);
+    if (!spot) return false;
+    // a little variety in size, the same for the same crab number
+    const n = this.beach.crabs.length;
+    const size = 0.85 + ((n * 0.618) % 1) * 0.35;
+    const crab = this.beach.hatch(spot.x, spot.z, size);
     if (!crab) {
       this.store.toast('The beach has all the crabs it can hold.');
       this.store.set({ addingCrab: false });
       return false;
     }
-    this.undo(line.id);
-    this.store.set({ addingCrab: false, hasDrawn: true, crabCount: this.beach.crabs.length, selection: null });
+    const full = this.beach.crabs.length >= MAX_CRABS;
+    this.store.set({ addingCrab: !full, hasDrawn: true, crabCount: this.beach.crabs.length, selection: null });
     return true;
   }
 

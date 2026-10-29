@@ -3,18 +3,21 @@ import { emptyPose, smooth, clamp01, type Pose } from './pose';
 
 /**
  * The beach's little dance: every crab lines up along the shore, facing
- * you, and they dance to a calypso together. The choreography is a pure
+ * you, and they do the Can-Can together — a chorus line, ten seconds long. The choreography is a pure
  * function of the beat (and each crab's place in the row), so the crabs
  * stay in step with each other and with the song, which is scheduled from
  * the same numbers (see audio/song.ts).
  */
 
-export const BPM = 112;
+/** Offenbach's galop, at a lively (but crab-sized) clip. */
+export const BPM = 144;
 export const BEAT = 60 / BPM;
-/** A bar of claw-tapping to count in. */
+/** A bar of claw-tapping under the drum roll to count in. */
 export const INTRO_BEATS = 4;
-/** Eight bars of dancing. */
-export const DANCE_BEATS = 32;
+/** Five bars of dancing: side-step, claws up, the ripple, a spin, ta-da. */
+export const DANCE_BEATS = 20;
+/** The bar in which the hop ripples down the line (everyone else is in step). */
+export const RIPPLE_BAR = 2;
 /** The last chord rings for two more beats while they hold the final pose. */
 export const OUTRO_BEATS = 2;
 export const SONG_BEATS = INTRO_BEATS + DANCE_BEATS + OUTRO_BEATS;
@@ -83,8 +86,7 @@ export function danceFrame(b: number, slot: number, n: number): DanceFrame {
   const bar = Math.floor(d / 4);
   const bb = d - bar * 4;
   switch (bar) {
-    case 0:
-    case 1: {
+    case 0: {
       // side-step: two beats to one side, two to the other, claws pumping
       along = 0.17 * Math.sin((Math.PI * d) / 2);
       p.gait = Math.abs(Math.cos((Math.PI * d) / 2));
@@ -94,8 +96,8 @@ export function danceFrame(b: number, slot: number, n: number): DanceFrame {
       p.roll = -0.12 * Math.cos((Math.PI * d) / 2);
       break;
     }
-    case 2: {
-      // claws up and waving, a bounce on every beat
+    case 1: {
+      // claws up and waving — the Can-Can, a bounce on every beat
       p.clawL = 0.9 + 0.15 * Math.sin(d * Math.PI);
       p.clawR = 0.9 - 0.15 * Math.sin(d * Math.PI);
       p.pinchL = p.pinchR = 0.5 + 0.5 * Math.sin(d * Math.PI * 2);
@@ -104,7 +106,7 @@ export function danceFrame(b: number, slot: number, n: number): DanceFrame {
       p.roll = 0.15 * Math.sin(d * Math.PI);
       break;
     }
-    case 3: {
+    case RIPPLE_BAR: {
       // a ripple down the line: each crab hops in turn, claws flung up
       const at = (slot / Math.max(1, n - 1)) * 2.5;
       const h = bump((bb - at) / 0.9);
@@ -115,33 +117,13 @@ export function danceFrame(b: number, slot: number, n: number): DanceFrame {
       p.gait = 0.6 * h;
       break;
     }
-    case 4: {
+    case 3: {
       // a spin on the spot
       spin = Math.PI * 2 * smooth(clamp01(bb / 3.5));
       p.gait = 1 - Math.abs(bb / 3.5 - 0.5) * 2 > 0 ? 0.9 : 0;
       p.clawL = p.clawR = 0.6;
       p.squash = 0.06 * beatAcc;
       p.bob = 0.01;
-      break;
-    }
-    case 5: {
-      // shimmy: a quick wiggle on the eighths, pincers snapping
-      p.roll = 0.2 * Math.sin(d * Math.PI * 4);
-      p.pitch = 0.08 * Math.sin(d * Math.PI * 2);
-      p.clawL = 0.55 + 0.1 * Math.sin(d * Math.PI * 4);
-      p.clawR = 0.55 - 0.1 * Math.sin(d * Math.PI * 4);
-      p.pinchL = p.pinchR = 0.5 + 0.5 * Math.sin(d * Math.PI * 4);
-      p.bob = -0.004;
-      p.dig = 0.25;
-      break;
-    }
-    case 6: {
-      // side-step the other way, twice as quick
-      along = -0.2 * Math.sin(Math.PI * d);
-      p.gait = Math.abs(Math.cos(Math.PI * d));
-      p.clawL = p.clawR = 0.5 + 0.3 * beatAcc;
-      p.bob = 0.012 * beatAcc;
-      p.roll = 0.14 * Math.cos(Math.PI * d);
       break;
     }
     default: {

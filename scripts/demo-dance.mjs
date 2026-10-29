@@ -29,15 +29,12 @@ await page.evaluate(() => {
 });
 await sleep(1200);
 await page.evaluate(() => window.__tide.app.toggleAddCrab());
-const loop = [];
-for (let i = 0; i <= 44; i++) { const a = Math.PI / 2 + (i / 44) * Math.PI * 2; loop.push(await toScreen(0.4 + Math.cos(a) * 0.42, -1.2 + Math.sin(a) * 0.33)); }
-await page.mouse.move(...loop[0]);
-await page.mouse.down();
-for (const p of loop.slice(1)) { await page.mouse.move(p[0], p[1]); await sleep(20); }
-await page.mouse.up();
+// tap in two more crabs
+for (const [x, z] of [[0.4, -1.2], [-2.2, -2]]) { await page.mouse.click(...(await toScreen(x, z))); await sleep(500); }
+await page.evaluate(() => window.__tide.store.set({ addingCrab: false }));
 await sleep(2200); // the new crab digs out and looks about
 const until = await page.evaluate(() => { const t = window.__tide; t.app.dance(); return t.app.beach.danceStart - t.engine.elapsed; });
-await sleep((until + 21.4 + 0.8) * 1000);
+await sleep((until + (await page.evaluate(async () => (await import('/src/crabs/dance.ts')).SONG_SECONDS)) + 0.8) * 1000);
 await page.evaluate(() => window.__finishDemo());
 const out = await page.evaluate(async () => {
   const rec = await window.__demo;

@@ -22,16 +22,12 @@ const c = await page.evaluate(() => { const k = window.__tide.app.beach.get(2).c
 const [fx, fy] = await toScreen(c[0], c[1]);
 await shot('footprints', { x: fx - 200, y: fy - 110, width: 400, height: 220 });
 
-// 2. add a crab: press the button, draw a loop
+// 2. add a crab: press the button, tap the sand
 await page.getByRole('button', { name: /Add a crab/ }).click();
-const loop = [];
-for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI * 2; loop.push(await toScreen(-1 + Math.cos(a) * 0.4, -2 + Math.sin(a) * 0.3)); }
-await page.mouse.move(...loop[0]);
-await page.mouse.down();
-for (const p of loop.slice(1)) await page.mouse.move(p[0], p[1], { steps: 2 });
 const [lx, ly] = await toScreen(-1, -2);
+await page.mouse.click(lx, ly);
 await shot('hatch-0', { x: lx - 160, y: ly - 90, width: 320, height: 180 });
-await page.mouse.up();
+await page.keyboard.press('Escape');
 for (let i = 1; i <= 4; i++) {
   await page.waitForTimeout(300);
   await shot(`hatch-${i}`, { x: lx - 160, y: ly - 90, width: 320, height: 180 });
