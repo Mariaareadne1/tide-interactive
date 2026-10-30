@@ -22,7 +22,7 @@ varying vec2 vUv;
 // Khronos PBR Neutral: keeps albedo hues honest, rolls off highlights gently.
 vec3 neutral(vec3 color) {
   const float startCompression = 0.8 - 0.04;
-  const float desaturation = 0.15;
+  const float desaturation = 0.06;
   float x = min(color.r, min(color.g, color.b));
   float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
   color -= offset;
@@ -47,16 +47,18 @@ void main() {
 
   // grade: pull shadows toward slate blue-violet, keep highlights warm and clean
   float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  vec3 shadowTint = vec3(0.93, 0.95, 1.10);
-  vec3 highTint = vec3(1.02, 1.0, 0.97);
+  vec3 shadowTint = vec3(0.96, 0.97, 1.06);
+  vec3 highTint = vec3(1.01, 1.0, 0.98);
   c *= mix(shadowTint, highTint, smoothstep(0.05, 0.55, luma));
-  c = mix(vec3(luma), c, 0.93); // a touch of restraint on saturation
+  c = max(mix(vec3(luma), c, 1.14), 0.0); // bright, gouache-saturated colour
 
   // soft vignette
   vec2 q = vUv - 0.5;
   q.x *= uResolution.x / uResolution.y;
-  c *= 1.0 - 0.16 * smoothstep(0.35, 1.05, length(q));
+  c *= 1.0 - 0.04 * smoothstep(0.45, 1.1, length(q));
 
+  // a clean white page: lift the top end so the paper reads as white
+  c = min(c * 1.05, vec3(1.0));
   vec3 outc = toSRGB(clamp(c, 0.0, 1.0));
   float n = hash(vUv * uResolution + fract(uTime) * 91.7) - 0.5;
   outc += n * uGrain + (hash(vUv * uResolution * 1.37) - 0.5) / 255.0;

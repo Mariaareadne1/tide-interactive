@@ -24,10 +24,10 @@ function rockGeometry(seed: number, r: number, h: number, wetFoot: boolean): THR
   const g = new THREE.IcosahedronGeometry(1, 6);
   const p = g.getAttribute('position') as THREE.BufferAttribute;
   const colors = new Float32Array(p.count * 3);
-  const top = new THREE.Color('#c9bfae');
-  const mid = new THREE.Color('#a99f92');
-  const foot = new THREE.Color(wetFoot ? '#6f6a63' : '#9a9184');
-  const lichen = new THREE.Color('#c8c08a');
+  const top = new THREE.Color('#c2c8dc');
+  const mid = new THREE.Color('#8b94b4');
+  const foot = new THREE.Color(wetFoot ? '#5e6788' : '#8a92b0');
+  const lichen = new THREE.Color('#d9d27a');
   const c = new THREE.Color();
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
@@ -63,7 +63,7 @@ function createRocks(world: WorldUniforms): THREE.Mesh {
 function createPebbles(world: WorldUniforms, density: number): THREE.Mesh {
   const rand = seededRandom(41);
   const parts: THREE.BufferGeometry[] = [];
-  const colours = ['#b8ab98', '#9c958a', '#c9b9a1', '#8d8a85', '#d4c3ad', '#a58d78'];
+  const colours = ['#c9cfe0', '#a3abc6', '#e8d8b8', '#8f97b3', '#f2e6cc', '#b8a7c8'];
   const count = Math.round(70 * density);
   let attempts = 0;
   while (parts.length < count && attempts++ < count * 30) {
@@ -91,7 +91,7 @@ function createPebbles(world: WorldUniforms, density: number): THREE.Mesh {
 function createSeaweed(world: WorldUniforms, density: number): THREE.Mesh {
   const rand = seededRandom(9);
   const parts: THREE.BufferGeometry[] = [];
-  const colours = ['#5f5a32', '#6e6638', '#4f5230', '#7a6a3c', '#3f4a2e'];
+  const colours = ['#2f7a3a', '#3f8a3a', '#26663a', '#5a8a2c', '#1f5a34'];
   const n = Math.round(260 * density);
   for (let i = 0; i < n; i++) {
     const x = -TILE.halfX + 0.9 + rand() * (TILE.halfX * 2 - 1.8);

@@ -62,8 +62,8 @@ varying vec3 vWorld;
 varying float vTip;
 varying float vRand;
 void main() {
-  vec3 base = mix(srgb(vec3(0.55, 0.62, 0.42)), srgb(vec3(0.62, 0.66, 0.44)), vRand);
-  vec3 tip = mix(srgb(vec3(0.84, 0.8, 0.58)), srgb(vec3(0.74, 0.76, 0.5)), vRand);
+  vec3 base = mix(srgb(vec3(0.24, 0.58, 0.22)), srgb(vec3(0.34, 0.66, 0.24)), vRand);
+  vec3 tip = mix(srgb(vec3(0.66, 0.84, 0.3)), srgb(vec3(0.52, 0.76, 0.26)), vRand);
   vec3 albedo = mix(base, tip, smoothstep(0.2, 1.0, vTip));
   float sunVis = castLight(vWorld, 0.04);
   gl_FragColor = vec4(disco(paintLight(albedo, normalize(vec3(0.0, 1.0, 0.4)), sunVis, 1.0, 0.25), vWorld), 1.0);
@@ -81,7 +81,8 @@ export function createDetails(world: WorldUniforms, density = 1): THREE.Mesh {
     const into = duneZ(x) - z; // metres into the dunes
     if (edgeDistance(x, z) < 0.45 || rockDistance(x, z) < 0.05) continue;
     // clumped by noise, thickest on the dune crests, a few stragglers out on the sand
-    const clump = 0.5 + fbm2(x / 1.6, z / 1.6, 2);
+    // (rotated, so the value noise's grid doesn't leave straight-edged clumps)
+    const clump = 0.5 + fbm2((x * 0.8 + z * 0.6) / 1.6, (z * 0.8 - x * 0.6) / 1.6, 3);
     const p = into > 0 ? Math.min(1, 0.25 + into * 0.6) * clump : Math.exp(into * 3) * 0.25 * clump;
     if (rand() > p) continue;
     tufts.push([x, z, into]);

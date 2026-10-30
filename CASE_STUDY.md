@@ -21,6 +21,10 @@ One gesture and one thing that happens to it. You press a line into wet sand; cr
 
 **Larger than life.** At the app camera a realistic 2 cm groove is three pixels. The groove is ~4 cm of real sand (~10 px at 1440 × 900) and the crabs ~35 px across — MEADOW's rule for characters, applied to the line too.
 
+## A brighter style
+
+Later the whole palette moved from a pastel wash to bold illustrated-map colour: flat, saturated fields with painted tonal patches, a green meadow on the dunes, turquoise into cobalt, a white page (see ART_DIRECTION). Two things only showed up once the colour was louder. Value noise's grid had been leaving straight vertical edges — in the stretched dry-brush noise, in the crisp new ochre patches, and in the clumping of the dune grass — so those noises are now warped and rotated off the axes. And a thin sheet of turquoise water over gold sand mixes to olive, so the swash now takes only the sand's light and dark, not its colour.
+
 ## Second round: crabs you draw, a dance, footprints, sound
 The owner asked for more after launch, and each addition was kept inside the one idea:
 - **Adding a crab** is a mode, not a guess. The first version had you draw a closed loop — a shell — but in use that was fiddly and a demo wants it instant, so now the mode turns the cursor into MEADOW's + and a tap places a crab; the fingertip doesn't touch the sand at all while it's on. (Drawing the shell had a second cost: it went through undo, which exposed the bug below.)

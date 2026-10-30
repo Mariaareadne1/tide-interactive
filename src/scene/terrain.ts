@@ -105,15 +105,16 @@ float patches(vec2 p, float cover) {
 vec3 seaPaint(vec2 xz, float d, float calm) {
   // turquoise shallows into deeper blue, laid in soft washes
   float wash = fbm2lite(xz * 0.18 + vec2(uTime * 0.01, 0.0));
-  vec3 shallow = srgb(vec3(0.5, 0.8, 0.76));
-  vec3 mid = srgb(vec3(0.3, 0.64, 0.72));
-  vec3 deep = srgb(vec3(0.2, 0.47, 0.64));
+  vec3 shallow = srgb(vec3(0.32, 0.86, 0.84));
+  vec3 mid = srgb(vec3(0.13, 0.62, 0.84));
+  vec3 deep = srgb(vec3(0.12, 0.38, 0.76));
   vec3 c = mix(shallow, mid, smoothstep(0.0, 1.6, d + (wash - 0.5) * 0.6));
   c = mix(c, deep, smoothstep(1.4, 4.0, d + (wash - 0.5) * 0.8));
   // sand showing through the very shallow water
-  c = mix(c, srgb(vec3(0.72, 0.78, 0.62)), smoothstep(0.5, 0.0, d) * 0.45);
+  c = mix(c, srgb(vec3(0.6, 0.9, 0.78)), smoothstep(0.5, 0.0, d) * 0.45);
   // long dry-brush strokes along the swell
-  float stroke = vnoise(vec2(xz.x * 0.35 + uTime * 0.02, d * 5.0)) * 0.6 + vnoise(vec2(xz.x * 1.2, d * 13.0)) * 0.4;
+  float wx = xz.x + (vnoise(xz * 0.37 + 9.3) - 0.5) * 3.0;
+  float stroke = vnoise(vec2(wx * 0.35 + uTime * 0.02, d * 5.0)) * 0.6 + vnoise(vec2(wx * 1.2 + 3.3, d * 13.0)) * 0.4;
   c *= 0.94 + 0.1 * stroke;
   return c;
 }
@@ -213,7 +214,9 @@ void main() {
     albedo *= 1.0 - 0.07 * exp(-pow((u - hw + 0.15) / 0.35, 2.0)) * (0.5 + 0.5 * vnoise(xz * 2.0));
     // dunes at the back: paler, with a cool green cast among the grass
     float dune = smoothstep(0.2, -1.4, xz.y - duneZ(xz.x));
-    albedo = mix(albedo, albedo * vec3(1.02, 1.03, 0.95), dune * 0.6);
+    float meadow = smoothstep(0.35, 0.65, dune + (vnoise(xz * 0.9) - 0.5) * 0.5);
+    vec3 green = mix(srgb(vec3(0.27, 0.6, 0.22)), srgb(vec3(0.48, 0.74, 0.24)), smoothstep(0.45, 0.62, fbm2lite(xz * 0.35 + 11.0)));
+    albedo = mix(albedo, green, meadow * 0.9);
 
     // grains: a fine round stipple, the odd dark or shell-pale one
     float gid;
@@ -226,7 +229,7 @@ void main() {
     float trough = s.r;
     float lip = s.g * (1.0 - s.r);
     // pressing through the surface finds damper, warmer sand underneath
-    vec3 under = mix(vec3(0.8, 0.68, 0.54), vec3(0.64, 0.52, 0.4), wet);
+    vec3 under = mix(vec3(0.84, 0.66, 0.46), vec3(0.68, 0.5, 0.34), wet);
     albedo *= mix(vec3(1.0), under, smoothstep(0.05, 0.75, trough));
     albedo = mix(albedo, albedo * vec3(1.1, 1.08, 1.04), smoothstep(0.1, 0.7, lip) * (0.7 - 0.4 * wet));
     // a few grains knocked loose along the edges
@@ -260,9 +263,11 @@ void main() {
       float t = uTime;
       bool up = uWaveTau < 0.4;
       // clear water over the sand, turquoise where it thickens
-      vec3 water = mix(srgb(vec3(0.66, 0.9, 0.88)), srgb(vec3(0.38, 0.76, 0.78)), smoothstep(0.1, 1.6, depth));
+      vec3 water = mix(srgb(vec3(0.56, 0.94, 0.92)), srgb(vec3(0.22, 0.78, 0.88)), smoothstep(0.1, 1.6, depth));
       // sand seen through a film of clear water: a pale turquoise wash, glassier where it's deeper
-      vec3 film = mix(col * vec3(0.9, 0.98, 1.0), uSunColor * water, 0.22 + 0.3 * smoothstep(0.0, 1.6, depth));
+      // (the sand shows through as light and dark, not as colour: gold under turquoise goes muddy)
+      float sandLuma = dot(col, vec3(0.3, 0.59, 0.11));
+      vec3 film = uSunColor * water * (0.62 + 0.75 * sandLuma);
       col = mix(col, film, sheet * 0.8);
       // the leading edge: a bright thread of foam, and behind it a band of lace —
       // thick and tumbling as the wave runs up, a fine broken net as it draws back

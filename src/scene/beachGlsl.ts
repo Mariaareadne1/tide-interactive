@@ -73,21 +73,28 @@ float cloudLight(vec2 xz) {
     vec2 c = vec2(mod(uTime * (0.16 + 0.05 * fi) + fi * 17.0 + 8.0, 34.0) - 17.0, -2.5 + fi * 5.5);
     vec2 q = (xz - c) / vec2(3.6 - fi * 0.8, 1.9);
     float n = vnoise(q * 1.6 + fi * 9.0) * 0.5;
-    s *= mix(0.84, 1.0, smoothstep(0.55, 1.15, length(q) + n));
+    s *= mix(0.78, 1.0, smoothstep(0.75, 0.95, length(q) + n));
   }
   return s;
 }
 
-/** Sand's base paint, before light: dry pale gold to dark glossy wet. */
+/** Sand's base paint, before light: bright gouache gold, deepening to ochre where wet. */
 vec3 sandPaint(vec2 xz, float wet) {
   float wash = fbm2lite(xz * 0.14 + 3.0);
-  vec3 dry = mix(srgb(vec3(0.93, 0.85, 0.69)), srgb(vec3(0.96, 0.89, 0.74)), smoothstep(0.3, 0.75, wash));
+  vec3 dry = mix(srgb(vec3(0.97, 0.83, 0.42)), srgb(vec3(1.0, 0.89, 0.53)), smoothstep(0.3, 0.75, wash));
+  // painted tonal patches: darker ochre shapes laid in with a soft but definite edge
+  // (rotated and warped, so value noise's grid never shows as a straight edge)
+  vec2 bq = mat2(0.8, 0.6, -0.6, 0.8) * xz * 0.2 + vec2(fbm2lite(xz * 0.3 + 1.7), fbm2lite(xz * 0.3 + 8.3)) * 0.9;
+  float blot = smoothstep(0.55, 0.6, fbm2lite(bq + 5.0));
+  dry = mix(dry, dry * vec3(0.9, 0.84, 0.74), blot * 0.75);
   // warm glaze pooling, like MEADOW's lawn light
-  dry = mix(dry, dry * vec3(1.05, 1.0, 0.9), smoothstep(0.5, 0.8, fbm2lite(xz * 0.1 - 2.0)) * 0.6);
-  vec3 damp = mix(srgb(vec3(0.78, 0.63, 0.46)), srgb(vec3(0.83, 0.69, 0.51)), smoothstep(0.3, 0.7, wash));
+  dry = mix(dry, dry * vec3(1.04, 1.0, 0.88), smoothstep(0.5, 0.8, fbm2lite(xz * 0.1 - 2.0)) * 0.5);
+  vec3 damp = mix(srgb(vec3(0.9, 0.67, 0.32)), srgb(vec3(0.93, 0.72, 0.38)), smoothstep(0.3, 0.7, wash));
   vec3 c = mix(dry, damp, wet);
   // long dry-brush drags running along the shore
-  float stroke = vnoise(vec2(xz.x * 0.45, xz.y * 6.0)) * 0.6 + vnoise(vec2(xz.x * 1.6, xz.y * 15.0)) * 0.4;
+  // (x is warped so the stretched noise's lattice never lines up into straight seams)
+  float wx = xz.x + (vnoise(xz * 0.37 + 4.1) - 0.5) * 3.0;
+  float stroke = vnoise(vec2(wx * 0.45, xz.y * 6.0)) * 0.6 + vnoise(vec2(wx * 1.6 + 3.3, xz.y * 15.0)) * 0.4;
   c *= 0.95 + 0.09 * stroke;
   return c;
 }

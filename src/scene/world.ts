@@ -11,7 +11,7 @@ import * as THREE from 'three';
 // THREE.Color parses hex as sRGB and stores linear values (ColorManagement is on).
 const linear = (hex: string) => new THREE.Color(hex);
 
-export const PAPER_HEX = '#f4efe4';
+export const PAPER_HEX = '#fcfbf8';
 export const MAX_RIPPLES = 6;
 
 const SUN = new THREE.Vector3(-0.58, 0.74, 0.34).normalize();
@@ -51,8 +51,8 @@ export function createWorldUniforms(): WorldUniforms {
   return {
     uTime: { value: 0 },
     uSunDir: { value: SUN.clone() },
-    uSunColor: { value: linear('#fff6e6') },
-    uShadeColor: { value: linear('#bdb9e3') },
+    uSunColor: { value: linear('#fffaf0') },
+    uShadeColor: { value: linear('#c9c4f0') },
     uPaper: { value: linear(PAPER_HEX) },
     uShadowMap: { value: null },
     uShadowMatrix: { value: new THREE.Matrix4() },
