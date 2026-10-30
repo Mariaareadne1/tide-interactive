@@ -90,11 +90,18 @@ float lace(vec2 p, float t, float thick) {
   return 1.0 - smoothstep(thick * 0.35, thick, cells(p, t).y);
 }
 /** White water: mostly foam, with round holes where the water shows through. */
-float froth(vec2 p, float t, float hole) {
-  p += vec2(vnoise(p * 0.6 - t * 0.1), vnoise(p * 0.6 + 3.7)) * 0.7;
-  // holes of varied size, and only half see-through: foam is mostly white
-  float h = hole * (0.55 + 0.6 * vnoise(p * 0.9));
-  return mix(0.45, 1.0, smoothstep(h * 0.7, h, cells(p, t).x));
+/**
+ * White water as a watercolour wash: broad soft-edged white shapes that drift
+ * and change, with a few larger gaps where the water shows through — painted,
+ * not a field of specks. 0..1 cover; density 0..1 is how much is white.
+ */
+float foamWash(vec2 p, float t, float density) {
+  p += vec2(fbm2lite(p * 0.5 - t * 0.05), fbm2lite(p * 0.5 + 3.7 + t * 0.03)) * 0.9;
+  float n = fbm2lite(p * 0.9 + vec2(0.0, t * 0.08)) + (vnoise(p * 3.0 + t * 0.2) - 0.5) * 0.07;
+  float th = 0.82 - density * 0.5;
+  float body = smoothstep(th - 0.06, th + 0.02, n);
+  float gap = smoothstep(0.64, 0.72, vnoise(p * 1.5 + 9.0 - t * 0.04));
+  return body * (1.0 - 0.7 * gap);
 }
 /** Foam comes in patches: 1 where there is some, fading out between. */
 float patches(vec2 p, float cover) {
@@ -168,11 +175,11 @@ void main() {
     float crest = crestBand < 0.003 ? 0.0 : crestBand * (0.55 + 0.45 * lace(xz * vec2(2.4, 3.2) + vec2(0.0, t * 0.3), t * 1.2, 0.3));
     float whiteMask = smoothstep(crestD + 0.05, crestD - 0.6, d) * smoothstep(0.0, 0.25, approach) * coming;
     float white = whiteMask < 0.003 ? 0.0 : whiteMask
-                * froth(xz * vec2(8.0, 9.5) + vec2(0.0, t * 0.5), t * 1.5, 0.3) * patches(xz * vec2(0.9, 1.6) - t * 0.1, 0.7) * 0.8;
+                * foamWash(xz * vec2(1.7, 2.3) + vec2(0.0, t * 0.25), t, 0.8) * 0.85;
     // the surge at the shoreline as the wave runs in
     float surgeMask = smoothstep(0.7, 0.0, d) * (1.0 - smoothstep(0.0, 0.25, uWaveTau)) * step(0.0005, uWaveTau);
     float surge = surgeMask < 0.003 ? 0.0 : surgeMask
-                * froth(xz * vec2(8.5, 10.0) + vec2(0.0, -t * 0.6), t * 1.2, 0.3) * patches(xz * vec2(0.8, 1.5) + t * 0.1, 0.75);
+                * foamWash(xz * vec2(1.7, 2.3) + vec2(0.0, -t * 0.3), t, 0.72);
     float foam = max(foamLine * 0.8, max(crest * 0.95, max(white, surge * 0.9)));
     // a soft wet line where the sea meets the sand
     foam = max(foam, smoothstep(0.1, 0.0, d) * 0.55 * (0.5 + 0.5 * vnoise(xz * 5.0)));
@@ -292,7 +299,7 @@ void main() {
       // running up it froths; drawing back it thins to a net of threads
       float edgeW = up ? 0.3 : 0.12;
       float bandMask = smoothstep(edgeW, 0.0, depth) * step(0.0, depth);
-      float web = bandMask < 0.003 ? 0.0 : up ? froth(xz * vec2(8.0, 9.5) + vec2(0.0, flow), t * 1.1, 0.3) : lace(xz * vec2(3.0, 4.2) + vec2(0.0, flow), t * 1.1, 0.2);
+      float web = bandMask < 0.003 ? 0.0 : up ? foamWash(xz * vec2(2.0, 2.6) + vec2(0.0, flow * 0.4), t, 0.78) : lace(xz * vec2(3.0, 4.2) + vec2(0.0, flow), t * 1.1, 0.2);
       float thread = smoothstep(0.035, 0.0, abs(depth - 0.02)) * (0.6 + 0.4 * vnoise(xz * 11.0 + t));
       float band = bandMask * patches(xz * vec2(1.4, 2.0) + vec2(0.0, flow * 0.3), up ? 0.85 : 0.65);
       // trails of foam drawn out along the flow inside the sheet
