@@ -72,7 +72,6 @@ export class Engine {
     if (this.reducedMotion) this.world.uWind.value = 0.25;
     this.camera = createCamera();
     this.post = new PostPass(quality === 'high' ? 4 : 2);
-    this.post.setClip(this.camera.near, this.camera.far);
 
     // the tile floats on a sheet of paper
     this.renderer.setClearColor(this.world.uPaper.value, 1);

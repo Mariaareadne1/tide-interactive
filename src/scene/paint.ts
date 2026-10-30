@@ -21,8 +21,6 @@ export interface PaintOptions {
   gloss?: number;
   shadeTint?: string;
   side?: THREE.Side;
-  /** Pencil hatching on the shaded side, 0..1 (rocks). */
-  hatch?: number;
 }
 
 const vertex = /* glsl */ `
@@ -58,7 +56,6 @@ uniform float uSoftness;
 uniform float uGloss;
 uniform float uSeed;
 uniform float uHighlight;
-uniform float uHatch;
 #ifdef VCOLOR
 varying vec3 vColor;
 #endif
@@ -92,7 +89,6 @@ void main() {
   col = mix(col, col * vec3(1.1, 1.1, 0.96), lift * 0.6);
   float shade = 1.0 - smoothstep(-0.2, 0.5, dot(N, uSunDir));
   col = mix(col, col * uShadeTint, shade * 0.5);
-  col = hatch(col, vWorld, shade * uHatch);
   col += vec3(0.12, 0.3, 0.75) * uHighlight * pow(1.0 - max(dot(N, V), 0.0), 2.5) * 0.6;
   col = disco(col, vWorld);
   gl_FragColor = vec4(col, 1.0);
@@ -114,7 +110,6 @@ export function paintMaterial(world: WorldUniforms, opts: PaintOptions = {}): TH
       uGloss: { value: opts.gloss ?? 0.2 },
       uSeed: { value: (seedCounter++ * 7.31) % 97 },
       uHighlight: { value: 0 },
-      uHatch: { value: opts.hatch ?? 0 },
     },
     defines,
     vertexShader: vertex,

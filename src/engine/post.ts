@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 
 /**
- * Final pass: ink outlines drawn from the depth buffer, exposure, a neutral
- * photographic tone curve, the cool blue-violet shadow grade, a soft
- * vignette, the paper's tooth, and fine grain + dither.
+ * Final pass: watercolour. Exposure and a neutral tone curve, then the
+ * things paint does on paper — wash edges that wander, a little bleed,
+ * pigment pooling darker at the edge of a wash, granulation in the paper's
+ * tooth, uneven wet-in-wet blooms — a faint vignette, grain + dither.
  * The scene renders linear HDR into a multisampled target; this writes sRGB.
  */
 
@@ -14,10 +15,6 @@ void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
 
 const fragment = /* glsl */ `
 uniform sampler2D tScene;
-uniform sampler2D tDepth;
-uniform float uNear;
-uniform float uFar;
-uniform float uInk;
 uniform float uExposure;
 uniform float uTime;
 uniform float uGrain;
@@ -50,56 +47,50 @@ float vnoise(vec2 p) {
   vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
 }
-
-// 1 / view depth: affine in screen space across any flat surface, so its
-// second difference is ~0 on the sand and spikes only at silhouettes
-float invDepth(vec2 uv, inout float far) {
-  float d = texture2D(tDepth, uv).r;
-  far = max(far, step(0.99999, d));
-  float z = d * 2.0 - 1.0;
-  return (uFar + uNear - z * (uFar - uNear)) / (2.0 * uNear * uFar);
-}
-
-/** Ink: where something stands in front of what's behind it, a thin wobbly line, like a pen. */
-float ink(vec2 uv) {
-  // the pen wanders a little, and presses harder in places
-  vec2 fc = uv * uResolution;
-  float scale = max(1.0, uResolution.y / 1000.0);
-  vec2 wob = (vec2(vnoise(fc / (34.0 * scale)), vnoise(fc / (34.0 * scale) + 17.3)) - 0.5) * 1.4 * scale;
-  vec2 px = scale * 0.9 / uResolution;
-  vec2 p = uv + wob / uResolution;
-  float far = 0.0;
-  float c = invDepth(p, far);
-  float lap = abs(invDepth(p + vec2(px.x, 0.0), far) + invDepth(p - vec2(px.x, 0.0), far) - 2.0 * c)
-            + abs(invDepth(p + vec2(0.0, px.y), far) + invDepth(p - vec2(0.0, px.y), far) - 2.0 * c);
-  // nothing against the bare paper: the tile's ragged edge is paint, not a drawn line
-  if (far > 0.5) return 0.0;
-  float pressure = 0.65 + 0.35 * vnoise(fc / (60.0 * scale) + 4.0);
-  return smoothstep(0.0008, 0.0032, lap / c) * pressure;
-}
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
 void main() {
-  vec3 hdr = texture2D(tScene, vUv).rgb * uExposure;
-  vec3 c = neutral(hdr);
-  // a warm sepia ink, darkening what it crosses rather than painting over it
-  c = mix(c, c * vec3(0.3, 0.25, 0.25) + vec3(0.012, 0.008, 0.01), ink(vUv) * uInk);
+  // work in "paper pixels", so the paper's grain is the same size on any screen
+  float scale = max(1.0, uResolution.y / 1000.0);
+  vec2 pc = vUv * uResolution / scale;
+  vec2 texel = scale / uResolution;
 
-  // grade: pull shadows toward slate blue-violet, keep highlights warm and clean
-  float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  vec3 shadowTint = vec3(0.93, 0.95, 1.10);
-  vec3 highTint = vec3(1.02, 1.0, 0.97);
-  c *= mix(shadowTint, highTint, smoothstep(0.05, 0.55, luma));
-  c = mix(vec3(luma), c, 0.97); // a touch of restraint on saturation
+  // a wash's edge never runs quite where it was meant to: let the boundaries wander
+  vec2 wob = (vec2(vnoise(pc / 38.0), vnoise(pc / 38.0 + 17.3)) - 0.5) * 2.4 + (vec2(vnoise(pc / 9.0 + 4.0), vnoise(pc / 9.0 + 9.0)) - 0.5) * 0.8;
+  vec2 uv = vUv + wob * texel;
 
-  // soft vignette
+  // four neighbours a few pixels out serve twice: a little colour bleeds in from them,
+  // and comparing against them finds the edge of a wash, where pigment pools
+  vec2 r = 2.5 * texel;
+  vec3 e1 = texture2D(tScene, uv + vec2(r.x, 0.0)).rgb, e2 = texture2D(tScene, uv - vec2(r.x, 0.0)).rgb;
+  vec3 e3 = texture2D(tScene, uv + vec2(0.0, r.y)).rgb, e4 = texture2D(tScene, uv - vec2(0.0, r.y)).rgb;
+  vec3 raw = texture2D(tScene, uv).rgb;
+  vec3 ringRaw = (e1 + e2 + e3 + e4) * 0.25;
+  vec3 c = neutral(mix(raw, ringRaw, 0.3) * uExposure);
+  // where this side is darker than its surroundings it dries darker still, in a soft rim;
+  // the light side lifts a touch (compared before the tone curve: the curve keeps the order)
+  float diff = (luma(ringRaw) - luma(raw)) * uExposure;
+  c *= 1.0 - clamp(diff * 3.0, 0.0, 0.3);
+  c = mix(c, vec3(1.0), clamp(-diff * 0.8, 0.0, 0.06));
+
+  // the paper's tooth, and pigment settling into its hollows (granulation): more pigment, more grain
+  float tooth = vnoise(pc / 1.7) * 0.45 + vnoise(pc / 4.5 + 3.1) * 0.35 + vnoise(pc / 22.0 + 7.7) * 0.2;
+  float pigment = clamp((0.92 - luma(c)) / 0.55, 0.0, 1.0);
+  c *= 1.0 - pigment * 0.16 * (tooth - 0.3);
+  // wet-in-wet: the wash is never even — broad soft blooms of more and less pigment
+  float bloom = vnoise(pc / 140.0 + 2.0) * 0.6 + vnoise(pc / 55.0 + 8.0) * 0.4;
+  c = mix(c, c * (0.9 + 0.2 * bloom), pigment);
+  // the paper itself
+  c *= 0.975 + 0.045 * tooth;
+
+  // grade: keep the shadows a little cool, the light clean
+  float l = luma(c);
+  c *= mix(vec3(0.96, 0.97, 1.05), vec3(1.01, 1.0, 0.98), smoothstep(0.05, 0.55, l));
+
+  // a faint vignette, like the light falling off across a sheet on a table
   vec2 q = vUv - 0.5;
   q.x *= uResolution.x / uResolution.y;
-  c *= 1.0 - 0.16 * smoothstep(0.35, 1.05, length(q));
-
-  // the paper's tooth: fine fibres and a soft mottle under everything, paint included
-  vec2 fc = vUv * uResolution / max(1.0, uResolution.y / 1000.0);
-  float tooth = vnoise(fc / 2.2) * 0.55 + vnoise(fc / 9.0 + 3.1) * 0.3 + vnoise(fc / 70.0 + 7.7) * 0.15;
-  c *= 0.975 + 0.05 * tooth;
+  c *= 1.0 - 0.08 * smoothstep(0.4, 1.1, length(q));
 
   vec3 outc = toSRGB(clamp(c, 0.0, 1.0));
   float n = hash(vUv * uResolution + fract(uTime) * 91.7) - 0.5;
@@ -119,15 +110,10 @@ export class PostPass {
       type: THREE.HalfFloatType,
       samples,
       depthBuffer: true,
-      depthTexture: new THREE.DepthTexture(1, 1),
     });
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         tScene: { value: this.target.texture },
-        tDepth: { value: this.target.depthTexture },
-        uNear: { value: 0.5 },
-        uFar: { value: 400 },
-        uInk: { value: 0.85 },
         uExposure: { value: 1.12 },
         uTime: { value: 0 },
         uGrain: { value: 0.012 },
@@ -141,12 +127,6 @@ export class PostPass {
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material);
     quad.frustumCulled = false;
     this.scene.add(quad);
-  }
-
-  /** The camera's clip planes, to read view depth back from the depth buffer. */
-  setClip(near: number, far: number): void {
-    this.material.uniforms.uNear.value = near;
-    this.material.uniforms.uFar.value = far;
   }
 
   setSize(width: number, height: number): void {

@@ -21,7 +21,11 @@ One gesture and one thing that happens to it. You press a line into wet sand; cr
 
 **Larger than life.** At the app camera a realistic 2 cm groove is three pixels. The groove is ~4 cm of real sand (~10 px at 1440 × 900) and the crabs ~35 px across — MEADOW's rule for characters, applied to the line too.
 
-## A brighter style, then a drawn one
+## A brighter style, a drawn one, then watercolour
+
+The style finally settled on watercolour, after loose aerial beach paintings. Outlines went; what carries it is what paint does on paper, done once in the final pass with five texture reads: the boundaries wander on slow noise, colour bleeds a pixel or two, every edge where one side is darker than its surroundings dries darker still (pigment pooling — which also gives the crabs and rocks a soft painted contour for free), pigment settles into the paper's tooth in proportion to how much there is, and broad blooms keep any wash from looking even. In the beach shader the sea is two washes with a pooled shelf between them, the water's marks are left white, and the tile ends in a soft wandering border that's darker where it dried, instead of the earlier pixel specks.
+
+### Before that
 
 The ask was "more drawn"; the first answer was louder colour, which was the wrong lever — it read as brighter, not drawn — and was rolled back. What actually makes it feel drawn is ink: outlines come from the depth buffer in the final pass (the second difference of 1/depth is zero across any flat surface and spikes at silhouettes, so the sand gets no lines and everything standing on it does), with the pen's position and pressure wandering on slow noise; the water's edge gets a pen line from the same reach function the waves use; the sea gets sparse arched strokes; cast shadows get world-space pencil hatching. The palette stayed soft.
 

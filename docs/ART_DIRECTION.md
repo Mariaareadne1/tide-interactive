@@ -4,7 +4,7 @@ TIDE is the fifth piece in the family (MEADOW, POND, HIVE, SKY). Same hand, same
 
 Measured against MEADOW's "Illustrated aerial references" (`meadow/docs/REFERENCE_ANALYSIS.md`): a painted tile floating on warm paper, seen from an elevated three-quarter angle, with gouache colour, a warm sun and lavender shade.
 
-**Drawn pass (2026-10-30).** The palette stays soft (a brighter, map-like palette was tried and rolled back as too loud); what makes it feel *drawn* is ink and pencil on top of the paint: a wobbly sepia pen outline around everything that stands up from the sand (crabs, rocks, pebbles, seaweed, grass), a blue-grey pen line along the water's edge and the running wave, little arched pen strokes sketched over the sea, pencil hatching inside cast shadows and on the shaded side of rocks, and the paper's tooth under it all.
+**Watercolour (2026-10-31).** After a too-bright map palette and an ink-and-pencil pass, the style settled on watercolour, after loose aerial beach paintings: light, airy washes on warm paper and no outlines. The look comes from the paint, not lines — pale cream sand, a fresh green wash over the dunes laid wet-in-wet with darker patches, mint shallows under a cerulean wash with a pooled edge between them, white dashes left on the water, a fine white line of foam at the water's edge, and a soft wandering border where the wash stops, darker where the pigment dried. A final pass does what paint does on paper: wandering wash edges, a little bleed, pigment pooling darker at every edge, granulation in the paper's tooth, and uneven blooms.
 
 ## Composition
 - **The tile.** 20 × 15 world metres, standing for a 4 × 3 m cove (1 world m = 20 real cm). The camera sits on the +z side, so the **sea lies along the near edge and waves run up the screen** — their reach is easy to read, and the lines you draw sit in the middle of the page, above the toolbar.
@@ -15,14 +15,14 @@ Measured against MEADOW's "Illustrated aerial references" (`meadow/docs/REFERENC
 ## Palette (sRGB)
 | | |
 |---|---|
-| Dry sand | `#eed9b0` → `#f4e3bd`, warm glaze pools, faint deeper painted patches |
-| Wet sand | `#c7a175` → `#d3b083`, with a faint sky sheen |
+| Dry sand | cream `#f9f5ea` → `#fcf8f0` (sRGB of 0.95/0.91/0.81 → 0.98/0.95/0.87 linear-authored), faint deeper patches with pooled edges |
+| Wet sand | warm beige, a step darker |
 | Groove trough | the sand underneath: warmer and damper (×0.8/0.68/0.54 dry, ×0.64/0.52/0.40 wet) |
-| Shallows → deep | `#b4e4dd` → `#8ccad9` → `#74b2cf` |
-| Foam | `#f7f9f4` |
+| Dunes | fresh green wash, darker green patches laid wet-in-wet |
+| Shallows → deep | mint → turquoise, then a cerulean wash over it with a pooled edge at the shelf |
+| Water marks | white dashes and a white line of foam at the edge — paper left showing |
 | Crabs | coral `#ec8a6c`, apricot `#eaa56a`, rose `#e39488`, sand `#dcb07e`; pale belly `#f3dfc4`; claw tips umber |
-| Ink | sepia pen ×(0.30, 0.25, 0.25) for outlines; blue-grey ×(0.34, 0.43, 0.52) at the water's edge, ×(0.5, 0.62, 0.74) for wave strokes; pencil hatch ×(0.6, 0.54, 0.6) |
-| Paper | `#f4efe4` |
+| Paper | `#f4efe4`, with tooth |
 
 ## The groove (the heart of the piece)
 - A real height-field displacement: a trough with a slightly pushed-up lip either side. Normals come from the heightmap per pixel, so the shaded wall and the lit wall read as *pressed in* under the one painted sun.

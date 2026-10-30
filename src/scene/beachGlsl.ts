@@ -78,18 +78,20 @@ float cloudLight(vec2 xz) {
   return s;
 }
 
-/** Sand's base paint, before light: dry pale gold to dark glossy wet. */
+/** Sand's base paint, before light: a pale cream wash, deepening to warm beige where wet. */
 vec3 sandPaint(vec2 xz, float wet) {
   float wash = fbm2lite(xz * 0.14 + 3.0);
-  vec3 dry = mix(srgb(vec3(0.93, 0.85, 0.69)), srgb(vec3(0.96, 0.89, 0.74)), smoothstep(0.3, 0.75, wash));
+  vec3 dry = mix(srgb(vec3(0.95, 0.91, 0.81)), srgb(vec3(0.98, 0.95, 0.87)), smoothstep(0.3, 0.75, wash));
   // painted tonal patches: slightly deeper shapes laid in with a soft but definite edge
   // (rotated and warped, so value noise's grid never shows as a straight edge)
   vec2 bq = mat2(0.8, 0.6, -0.6, 0.8) * xz * 0.2 + vec2(fbm2lite(xz * 0.3 + 1.7), fbm2lite(xz * 0.3 + 8.3)) * 0.9;
   float blot = smoothstep(0.55, 0.6, fbm2lite(bq + 5.0));
   dry = mix(dry, dry * vec3(0.95, 0.92, 0.86), blot * 0.6);
+  // and, like any wash, a little darker where it dried at its edge
+  dry *= 1.0 - 0.07 * blot * (1.0 - blot) * 4.0;
   // warm glaze pooling, like MEADOW's lawn light
   dry = mix(dry, dry * vec3(1.05, 1.0, 0.9), smoothstep(0.5, 0.8, fbm2lite(xz * 0.1 - 2.0)) * 0.6);
-  vec3 damp = mix(srgb(vec3(0.78, 0.63, 0.46)), srgb(vec3(0.83, 0.69, 0.51)), smoothstep(0.3, 0.7, wash));
+  vec3 damp = mix(srgb(vec3(0.88, 0.77, 0.6)), srgb(vec3(0.91, 0.81, 0.65)), smoothstep(0.3, 0.7, wash));
   vec3 c = mix(dry, damp, wet);
   // long dry-brush drags running along the shore
   // (x is warped so the stretched noise's lattice never lines up into straight seams)

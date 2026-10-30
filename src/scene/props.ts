@@ -54,7 +54,7 @@ function createRocks(world: WorldUniforms): THREE.Mesh {
     g.translate(r.x, terrainHeight(r.x, r.z) - 0.04, r.z);
     return g;
   });
-  const mesh = caster(new THREE.Mesh(mergeGeometries(parts), paintMaterial(world, { vertexColors: true, softness: 0.18, gloss: 0.15, hatch: 1 })));
+  const mesh = caster(new THREE.Mesh(mergeGeometries(parts), paintMaterial(world, { vertexColors: true, softness: 0.18, gloss: 0.15 })));
   mesh.name = 'rocks';
   return mesh;
 }
