@@ -105,13 +105,13 @@ float patches(vec2 p, float cover) {
 vec3 seaPaint(vec2 xz, float d, float calm) {
   // turquoise shallows into deeper blue, laid in soft washes
   float wash = fbm2lite(xz * 0.18 + vec2(uTime * 0.01, 0.0));
-  vec3 shallow = srgb(vec3(0.32, 0.86, 0.84));
-  vec3 mid = srgb(vec3(0.13, 0.62, 0.84));
-  vec3 deep = srgb(vec3(0.12, 0.38, 0.76));
+  vec3 shallow = srgb(vec3(0.5, 0.8, 0.76));
+  vec3 mid = srgb(vec3(0.3, 0.64, 0.72));
+  vec3 deep = srgb(vec3(0.2, 0.47, 0.64));
   vec3 c = mix(shallow, mid, smoothstep(0.0, 1.6, d + (wash - 0.5) * 0.6));
   c = mix(c, deep, smoothstep(1.4, 4.0, d + (wash - 0.5) * 0.8));
   // sand showing through the very shallow water
-  c = mix(c, srgb(vec3(0.6, 0.9, 0.78)), smoothstep(0.5, 0.0, d) * 0.45);
+  c = mix(c, srgb(vec3(0.72, 0.78, 0.62)), smoothstep(0.5, 0.0, d) * 0.45);
   // long dry-brush strokes along the swell
   float wx = xz.x + (vnoise(xz * 0.37 + 9.3) - 0.5) * 3.0;
   float stroke = vnoise(vec2(wx * 0.35 + uTime * 0.02, d * 5.0)) * 0.6 + vnoise(vec2(wx * 1.2 + 3.3, d * 13.0)) * 0.4;
@@ -186,6 +186,16 @@ void main() {
     col += uSunColor * (glit * 0.6 + streak * 0.35) * sunVis;
     // the sky's pale reflection, stronger at a grazing look
     col = mix(col, srgb(vec3(0.86, 0.93, 0.96)), pow(1.0 - max(V.y, 0.0), 3.0) * 0.25);
+    // drawn waves: little arched pen strokes scattered over the water, like a quick sketch of a sea
+    vec2 wg = xz * vec2(1.05, 2.1) + vec2(t * 0.025, 0.0);
+    wg.x += hash12(vec2(floor(wg.y), 5.0)) * 3.0; // stagger the rows
+    vec2 wid = floor(wg);
+    vec2 wf = fract(wg) - 0.5 - (vec2(hash12(wid + 3.1), hash12(wid + 7.7)) - 0.5) * 0.35;
+    float wlen = 0.18 + 0.12 * hash12(wid + 1.3);
+    float arc = wf.y - (1.5 * wf.x * wf.x - 0.04);
+    float dash = (1.0 - smoothstep(0.0, fwidth(arc) * 1.5, abs(arc))) * smoothstep(wlen, wlen * 0.55, abs(wf.x));
+    dash *= step(0.5, hash12(wid)) * smoothstep(0.45, 1.1, d);
+    col = mix(col, col * vec3(0.5, 0.62, 0.74), dash * (0.55 + 0.35 * vnoise(xz * 6.0)));
   } else {
     // ---- the sand ----
     vec4 s = sandAt(xz);
@@ -214,9 +224,7 @@ void main() {
     albedo *= 1.0 - 0.07 * exp(-pow((u - hw + 0.15) / 0.35, 2.0)) * (0.5 + 0.5 * vnoise(xz * 2.0));
     // dunes at the back: paler, with a cool green cast among the grass
     float dune = smoothstep(0.2, -1.4, xz.y - duneZ(xz.x));
-    float meadow = smoothstep(0.35, 0.65, dune + (vnoise(xz * 0.9) - 0.5) * 0.5);
-    vec3 green = mix(srgb(vec3(0.27, 0.6, 0.22)), srgb(vec3(0.48, 0.74, 0.24)), smoothstep(0.45, 0.62, fbm2lite(xz * 0.35 + 11.0)));
-    albedo = mix(albedo, green, meadow * 0.9);
+    albedo = mix(albedo, albedo * vec3(1.02, 1.03, 0.95), dune * 0.6);
 
     // grains: a fine round stipple, the odd dark or shell-pale one
     float gid;
@@ -229,15 +237,18 @@ void main() {
     float trough = s.r;
     float lip = s.g * (1.0 - s.r);
     // pressing through the surface finds damper, warmer sand underneath
-    vec3 under = mix(vec3(0.84, 0.66, 0.46), vec3(0.68, 0.5, 0.34), wet);
+    vec3 under = mix(vec3(0.8, 0.68, 0.54), vec3(0.64, 0.52, 0.4), wet);
     albedo *= mix(vec3(1.0), under, smoothstep(0.05, 0.75, trough));
     albedo = mix(albedo, albedo * vec3(1.1, 1.08, 1.04), smoothstep(0.1, 0.7, lip) * (0.7 - 0.4 * wet));
     // a few grains knocked loose along the edges
     float loose = speck(xz + 0.13, 120.0, 0.4, 0.38, gid) * smoothstep(0.15, 0.6, s.g) * (1.0 - smoothstep(0.3, 0.7, s.r));
     albedo *= 1.0 + loose * (gid > 0.4 ? 0.16 : -0.2) * (1.2 - wet * 0.5);
 
-    float sunVis = castLight(vWorld, 0.025) * clouds;
+    float castVis = castLight(vWorld, 0.025);
+    float sunVis = castVis * clouds;
     col = paintLight(albedo, N, sunVis, 1.0, 0.22 - 0.08 * wet);
+    // shadows cast on the sand are hatched in pencil, as well as shaded
+    col = hatch(col, vWorld, smoothstep(0.05, 0.6, 1.0 - castVis));
     // cavity: the bottom of a groove is out of the open sky
     col *= 1.0 - 0.22 * smoothstep(0.3, 1.0, trough);
 
@@ -263,11 +274,9 @@ void main() {
       float t = uTime;
       bool up = uWaveTau < 0.4;
       // clear water over the sand, turquoise where it thickens
-      vec3 water = mix(srgb(vec3(0.56, 0.94, 0.92)), srgb(vec3(0.22, 0.78, 0.88)), smoothstep(0.1, 1.6, depth));
+      vec3 water = mix(srgb(vec3(0.66, 0.9, 0.88)), srgb(vec3(0.38, 0.76, 0.78)), smoothstep(0.1, 1.6, depth));
       // sand seen through a film of clear water: a pale turquoise wash, glassier where it's deeper
-      // (the sand shows through as light and dark, not as colour: gold under turquoise goes muddy)
-      float sandLuma = dot(col, vec3(0.3, 0.59, 0.11));
-      vec3 film = uSunColor * water * (0.62 + 0.75 * sandLuma);
+      vec3 film = mix(col * vec3(0.9, 0.98, 1.0), uSunColor * water, 0.22 + 0.3 * smoothstep(0.0, 1.6, depth));
       col = mix(col, film, sheet * 0.8);
       // the leading edge: a bright thread of foam, and behind it a band of lace —
       // thick and tumbling as the wave runs up, a fine broken net as it draws back
@@ -294,6 +303,13 @@ void main() {
       col = mix(col, uSunColor * srgb(vec3(0.97, 0.98, 0.96)), rippleRings(xz) * 0.5 * sheet);
     }
   }
+
+  // the water's edge, inked: a fine blue-grey pen line along the sea and the running wave,
+  // pressed harder in places and lifting off now and then
+  float waterEdge = max(waveFront(xz.x), 0.0) - u;
+  float pen = 1.0 - smoothstep(0.0, fwidth(waterEdge) * 2.0, abs(waterEdge + 0.015));
+  pen *= smoothstep(0.08, 0.28, vnoise(xz * vec2(1.3, 2.0) + 2.0)) * (0.65 + 0.35 * vnoise(xz * 7.0));
+  col = mix(col, col * vec3(0.34, 0.43, 0.52), pen * 0.85);
 
   col = disco(col, vWorld);
   // where the paint thins at the edge, the paper shows through

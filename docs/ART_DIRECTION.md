@@ -2,9 +2,9 @@
 
 TIDE is the fifth piece in the family (MEADOW, POND, HIVE, SKY). Same hand, same page, the smallest idea yet: you draw in the wet sand with your finger, little crabs come and walk along your line, and the sea gently takes it back. It should feel quiet and a little bittersweet — never sad.
 
-Measured against MEADOW's "Illustrated aerial references" (`meadow/docs/REFERENCE_ANALYSIS.md`): a painted tile floating on a white page, seen from an elevated three-quarter angle, with gouache colour, a warm sun and lavender shade.
+Measured against MEADOW's "Illustrated aerial references" (`meadow/docs/REFERENCE_ANALYSIS.md`): a painted tile floating on warm paper, seen from an elevated three-quarter angle, with gouache colour, a warm sun and lavender shade.
 
-**Brighter pass (2026-10-30).** Retuned toward bold illustrated aerial maps — golden fields, cobalt rivers, crisp greens on white: flat, saturated colour fields with painted tonal patches and definite soft shadow shapes, rather than the earlier pastel wash. Shade is lighter, the final grade adds saturation instead of restraining it, and the vignette is nearly gone so the page reads white.
+**Drawn pass (2026-10-30).** The palette stays soft (a brighter, map-like palette was tried and rolled back as too loud); what makes it feel *drawn* is ink and pencil on top of the paint: a wobbly sepia pen outline around everything that stands up from the sand (crabs, rocks, pebbles, seaweed, grass), a blue-grey pen line along the water's edge and the running wave, little arched pen strokes sketched over the sea, pencil hatching inside cast shadows and on the shaded side of rocks, and the paper's tooth under it all.
 
 ## Composition
 - **The tile.** 20 × 15 world metres, standing for a 4 × 3 m cove (1 world m = 20 real cm). The camera sits on the +z side, so the **sea lies along the near edge and waves run up the screen** — their reach is easy to read, and the lines you draw sit in the middle of the page, above the toolbar.
@@ -15,16 +15,14 @@ Measured against MEADOW's "Illustrated aerial references" (`meadow/docs/REFERENC
 ## Palette (sRGB)
 | | |
 |---|---|
-| Dry sand | gold `#f7d46b` → `#ffe387`, with darker ochre painted patches (×0.9/0.84/0.74) and warm glaze pools |
-| Wet sand | ochre `#e5ab52` → `#edb861`, with a faint sky sheen |
-| Groove trough | the sand underneath: warmer and damper (×0.84/0.66/0.46 dry, ×0.68/0.50/0.34 wet) |
-| Dunes | a meadow of `#459a38` → `#7abd3d` with a crisp, wandering edge; marram tufts `#3d9438` → `#a8d64d` |
-| Shallows → deep | turquoise `#52dbd6` → `#219ed6` → cobalt `#1f61c2` |
+| Dry sand | `#eed9b0` → `#f4e3bd`, warm glaze pools, faint deeper painted patches |
+| Wet sand | `#c7a175` → `#d3b083`, with a faint sky sheen |
+| Groove trough | the sand underneath: warmer and damper (×0.8/0.68/0.54 dry, ×0.64/0.52/0.40 wet) |
+| Shallows → deep | `#b4e4dd` → `#8ccad9` → `#74b2cf` |
 | Foam | `#f7f9f4` |
-| Crabs | red `#f0523a`, orange `#f47a2c`, raspberry `#e8455c`, coral `#ff6a4a`; pale belly; claw tips dark umber |
-| Rocks | blue-slate `#c2c8dc` → `#8b94b4`, darker wet foot |
-| Seaweed | greens `#1f5a34` → `#5a8a2c` |
-| Paper | white `#fcfbf8` |
+| Crabs | coral `#ec8a6c`, apricot `#eaa56a`, rose `#e39488`, sand `#dcb07e`; pale belly `#f3dfc4`; claw tips umber |
+| Ink | sepia pen ×(0.30, 0.25, 0.25) for outlines; blue-grey ×(0.34, 0.43, 0.52) at the water's edge, ×(0.5, 0.62, 0.74) for wave strokes; pencil hatch ×(0.6, 0.54, 0.6) |
+| Paper | `#f4efe4` |
 
 ## The groove (the heart of the piece)
 - A real height-field displacement: a trough with a slightly pushed-up lip either side. Normals come from the heightmap per pixel, so the shaded wall and the lit wall read as *pressed in* under the one painted sun.

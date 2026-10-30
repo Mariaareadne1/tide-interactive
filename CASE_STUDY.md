@@ -21,9 +21,11 @@ One gesture and one thing that happens to it. You press a line into wet sand; cr
 
 **Larger than life.** At the app camera a realistic 2 cm groove is three pixels. The groove is ~4 cm of real sand (~10 px at 1440 × 900) and the crabs ~35 px across — MEADOW's rule for characters, applied to the line too.
 
-## A brighter style
+## A brighter style, then a drawn one
 
-Later the whole palette moved from a pastel wash to bold illustrated-map colour: flat, saturated fields with painted tonal patches, a green meadow on the dunes, turquoise into cobalt, a white page (see ART_DIRECTION). Two things only showed up once the colour was louder. Value noise's grid had been leaving straight vertical edges — in the stretched dry-brush noise, in the crisp new ochre patches, and in the clumping of the dune grass — so those noises are now warped and rotated off the axes. And a thin sheet of turquoise water over gold sand mixes to olive, so the swash now takes only the sand's light and dark, not its colour.
+The ask was "more drawn"; the first answer was louder colour, which was the wrong lever — it read as brighter, not drawn — and was rolled back. What actually makes it feel drawn is ink: outlines come from the depth buffer in the final pass (the second difference of 1/depth is zero across any flat surface and spikes at silhouettes, so the sand gets no lines and everything standing on it does), with the pen's position and pressure wandering on slow noise; the water's edge gets a pen line from the same reach function the waves use; the sea gets sparse arched strokes; cast shadows get world-space pencil hatching. The palette stayed soft.
+
+For the record, the brighter pass moved the palette from a pastel wash to bold illustrated-map colour: flat, saturated fields with painted tonal patches, a green meadow on the dunes, turquoise into cobalt, a white page (see ART_DIRECTION). Two things only showed up once the colour was louder. Value noise's grid had been leaving straight vertical edges — in the stretched dry-brush noise, in the crisp new ochre patches, and in the clumping of the dune grass — so those noises are now warped and rotated off the axes. And a thin sheet of turquoise water over gold sand mixes to olive, so the swash now takes only the sand's light and dark, not its colour.
 
 ## Second round: crabs you draw, a dance, footprints, sound
 The owner asked for more after launch, and each addition was kept inside the one idea:

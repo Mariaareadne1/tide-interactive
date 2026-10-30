@@ -63,6 +63,21 @@ uniform float uBeat;
 `;
 
 export const LIGHTING_GLSL = /* glsl */ `
+// Pencil hatching in world space (so it sits on the surface, not the screen):
+// diagonal strokes with a little wobble and grain, crossed where it's darkest.
+float hatchStrokes(vec3 wp, float dir, float density) {
+  float h = (wp.x * dir * 0.7 + wp.z * 0.72 + wp.y) * density + vnoise(wp.xz * 4.0 + dir) * 0.5;
+  float w = fwidth(h);
+  float l = abs(fract(h) - 0.5);
+  return (1.0 - smoothstep(0.11 - w, 0.11 + w, l)) * (0.55 + 0.45 * vnoise(wp.xz * 38.0 + dir * 3.0));
+}
+vec3 hatch(vec3 col, vec3 wp, float amount) {
+  if (amount < 0.01) return col;
+  float lines = hatchStrokes(wp, 1.0, 14.0) * smoothstep(0.0, 0.35, amount)
+              + hatchStrokes(wp, -1.0, 14.0) * smoothstep(0.55, 0.9, amount);
+  return mix(col, col * vec3(0.6, 0.54, 0.6), clamp(lines, 0.0, 1.0) * 0.62);
+}
+
 vec3 discoHue(float h) {
   return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
 }

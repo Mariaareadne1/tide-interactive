@@ -24,10 +24,10 @@ export interface CrabColours {
 }
 
 export const CRAB_COLOURS: CrabColours[] = [
-  { shell: '#f0523a', rim: '#c23626', leg: '#f6765c', tip: '#6e2218' },
-  { shell: '#f47a2c', rim: '#c95516', leg: '#f99a5a', tip: '#6e3210' },
-  { shell: '#e8455c', rim: '#b52c42', leg: '#f06a7c', tip: '#661c28' },
-  { shell: '#ff6a4a', rim: '#d0442c', leg: '#ff8c70', tip: '#702818' },
+  { shell: '#ec8a6c', rim: '#c9604c', leg: '#f0a184', tip: '#7a4a3a' },
+  { shell: '#eaa56a', rim: '#c97f47', leg: '#f1ba86', tip: '#7a5034' },
+  { shell: '#e39488', rim: '#bf6a63', leg: '#eeac9f', tip: '#73463f' },
+  { shell: '#dcb07e', rim: '#b48659', leg: '#e8c49a', tip: '#6e5236' },
 ];
 
 /** Disco frames, one per crab colour. */
